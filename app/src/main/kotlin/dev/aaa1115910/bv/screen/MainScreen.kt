@@ -7,9 +7,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,8 @@ import dev.aaa1115910.bv.screen.main.PersonalContent
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
+import dev.aaa1115910.bv.ui.theme.BVMotion
+import dev.aaa1115910.bv.ui.theme.sectionContentTransform
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -134,14 +137,7 @@ fun MainScreen(
                 targetState = selectedDrawerItem,
                 label = "main animated content",
                 transitionSpec = {
-                    val coefficient = 20
-                    if (targetState.ordinal < initialState.ordinal) {
-                        fadeIn() + slideInVertically { -it / coefficient } togetherWith
-                                fadeOut() + slideOutVertically { it / coefficient }
-                    } else {
-                        fadeIn() + slideInVertically { it / coefficient } togetherWith
-                                fadeOut() + slideOutVertically { -it / coefficient }
-                    }
+                    sectionContentTransform(forward = targetState.ordinal >= initialState.ordinal)
                 }
             ) { screen ->
                 when (screen) {
@@ -156,13 +152,29 @@ fun MainScreen(
 
             AnimatedVisibility(
                 visible = showUserPanel,
-                enter = fadeIn(),
-                exit = fadeOut()
+                // 面板从中心轻微放大着淡入，比单纯 fade 更有「弹出来」的感觉
+                enter = fadeIn(tween(BVMotion.DurationMedium, easing = BVMotion.EmphasizedEasing)) +
+                        scaleIn(
+                            animationSpec = tween(
+                                BVMotion.DurationMedium,
+                                easing = BVMotion.EmphasizedDecelerateEasing
+                            ),
+                            initialScale = 0.94f
+                        ),
+                exit = fadeOut(tween(BVMotion.DurationFast)) + scaleOut(targetScale = 0.97f)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f))
+                        // 径向遮罩：中间稍亮，边缘压暗，把注意力收到面板上
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.55f),
+                                    Color.Black.copy(alpha = 0.86f)
+                                )
+                            )
+                        )
                 ) {
                     UserPanel(
                         modifier = Modifier

@@ -31,8 +31,11 @@ class BiliUserAgentConfig(
         private set
 
     fun buildUserAgents() {
+        // 国产电视/盒子的 Build.MODEL 可能带中文，直接塞进 header 会导致请求抛异常，
+        // 这里只保留可见 ASCII 字符
+        val safeModel = model.filter { it.code in 0x20..0x7E }
         appUserAgent =
-            "Mozilla/5.0 BiliDroid/$version (bbcallen@gmail.com) os/$platform model/$model mobi_app/$mobiApp build/$buildCode channel/$channel innerVer/$buildCode osVer/$osVersion network/$network"
+            "Mozilla/5.0 BiliDroid/$version (bbcallen@gmail.com) os/$platform model/$safeModel mobi_app/$mobiApp build/$buildCode channel/$channel innerVer/$buildCode osVer/$osVersion network/$network"
         webUserAgent =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
     }

@@ -143,9 +143,7 @@ android {
             (this as ApkVariantOutputImpl).apply {
                 val abi = this.filters.find { it.filterType == "ABI" }?.identifier ?: "universal"
                 outputFileName =
-                    "BV_${AppConfiguration.versionCode}_${AppConfiguration.versionName}.${variant.buildType.name}_${variant.flavorName}_$abi.apk"
-                versionNameOverride =
-                    "${variant.versionName}.${variant.buildType.name}"
+                    "BV_${AppConfiguration.versionName}_${variant.buildType.name}_${variant.flavorName}_$abi.apk"
             }
         }
     }

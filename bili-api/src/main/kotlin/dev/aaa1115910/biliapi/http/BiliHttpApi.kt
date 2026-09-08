@@ -3,8 +3,10 @@ package dev.aaa1115910.biliapi.http
 import com.tfowl.ktor.client.plugins.JsoupPlugin
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.http.BiliHttpApi.getRegionDynamic
+import dev.aaa1115910.biliapi.http.entity.AuthFailureException
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.BiliResponseWithoutData
+import dev.aaa1115910.biliapi.http.entity.RiskControlException
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuResponse
 import dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData
@@ -76,6 +78,7 @@ import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -93,11 +96,20 @@ import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jsoup.nodes.Document
 import java.io.InputStream
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import javax.xml.parsers.DocumentBuilderFactory
 
 @Suppress("SpellCheckingInspection")
@@ -115,17 +127,126 @@ object BiliHttpApi {
     var wbiSubKey: String? = null
     private var wbiLastRefreshDate = 0L
 
+    // 多个 wbi 请求会并发触发刷新，加锁避免同时打多次 nav 接口
+    private val wbiUpdateMutex = Mutex()
+
     // 用于获取 buvid3 的提供者，由应用层设置
     var buvid3: String = ""
         private set
+    var buvid4: String = ""
+        private set
+    var bNut: String = ""
+        private set
+    var biliTicket: String = ""
+        private set
+    private var biliTicketExpires: Long = 0L
 
-    fun init(buvid3: String) {
+    /** web 端指纹 cookie 更新后回调给应用层落盘 */
+    var onWebCookiesUpdated: (buvid3: String, buvid4: String, bNut: String, ticket: String, ticketExpires: Long) -> Unit =
+        { _, _, _, _, _ -> }
+
+    private val webCookieMutex = Mutex()
+
+    // 指纹接口失败时的重试间隔，避免网络异常时每个 wbi 请求都去打一次
+    private var lastFingerprintAttempt = 0L
+    private var lastTicketAttempt = 0L
+
+    fun init(
+        buvid3: String,
+        buvid4: String = "",
+        bNut: String = "",
+        biliTicket: String = "",
+        biliTicketExpires: Long = 0L
+    ) {
         this.buvid3 = buvid3
+        this.buvid4 = buvid4
+        this.bNut = bNut
+        this.biliTicket = biliTicket
+        this.biliTicketExpires = biliTicketExpires
 
         createClient()
         CoroutineScope(Dispatchers.IO).launch {
+            ensureWebCookies()
             updateWbi()
         }
+    }
+
+    /**
+     * 补齐 web 端指纹 cookie
+     *
+     * 真实浏览器访问 B 站时会带上 buvid3/buvid4/b_nut/bili_ticket，
+     * 只带一个本地随机生成的 buvid3 更容易被风控判定为机器行为。
+     * 任一步失败都只记日志，不影响后续请求（退回原来只带 buvid3 的行为）。
+     */
+    suspend fun ensureWebCookies() {
+        webCookieMutex.withLock {
+            val nowMillis = System.currentTimeMillis()
+            val retryInterval = 10 * 60 * 1000L
+
+            // buvid3/buvid4 由官方接口签发，只在本地还没有 buvid4 时取一次
+            if (buvid4.isBlank() && nowMillis - lastFingerprintAttempt > retryInterval) {
+                lastFingerprintAttempt = nowMillis
+                runCatching {
+                    val response = client.get("/x/frontend/finger/spi").bodyAsText()
+                    val data = json.parseToJsonElement(response).jsonObject["data"]?.jsonObject
+                    val b3 = data?.get("b_3")?.jsonPrimitive?.contentOrNull
+                    val b4 = data?.get("b_4")?.jsonPrimitive?.contentOrNull
+                    if (!b3.isNullOrBlank() && !b4.isNullOrBlank()) {
+                        buvid3 = b3
+                        buvid4 = b4
+                        bNut = (System.currentTimeMillis() / 1000).toString()
+                        println("Fetched official buvid3/buvid4")
+                    }
+                }.onFailure { println("Fetch finger spi failed: $it") }
+            }
+
+            // bili_ticket 有效期 3 天，提前 1 小时续期
+            val now = System.currentTimeMillis() / 1000
+            if ((biliTicket.isBlank() || now > biliTicketExpires - 3600) &&
+                nowMillis - lastTicketAttempt > retryInterval
+            ) {
+                lastTicketAttempt = nowMillis
+                runCatching {
+                    val ts = now
+                    val hexSign = hmacSha256("XgwSnGZ1p", "ts$ts")
+                    val response = client.post("/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket") {
+                        parameter("key_id", "ec02")
+                        parameter("hexsign", hexSign)
+                        parameter("context[ts]", ts)
+                        parameter("csrf", "")
+                    }.bodyAsText()
+                    val root = json.parseToJsonElement(response).jsonObject
+                    if (root["code"]?.jsonPrimitive?.intOrNull == 0) {
+                        val data = root["data"]?.jsonObject
+                        val ticket = data?.get("ticket")?.jsonPrimitive?.contentOrNull
+                        val ttl = data?.get("ttl")?.jsonPrimitive?.intOrNull ?: 259200
+                        if (!ticket.isNullOrBlank()) {
+                            biliTicket = ticket
+                            biliTicketExpires = ts + ttl
+                            println("Updated bili_ticket, expires in ${ttl}s")
+                        }
+                        // 该接口会顺带返回最新的 wbi key，可以省掉一次 nav 请求
+                        data?.get("nav")?.jsonObject?.let { nav ->
+                            val img = nav["img"]?.jsonPrimitive?.contentOrNull
+                            val sub = nav["sub"]?.jsonPrimitive?.contentOrNull
+                            if (!img.isNullOrBlank() && !sub.isNullOrBlank()) {
+                                wbiImgKey = img.substringAfterLast('/').substringBefore('.')
+                                wbiSubKey = sub.substringAfterLast('/').substringBefore('.')
+                                wbiLastRefreshDate = System.currentTimeMillis()
+                            }
+                        }
+                    }
+                }.onFailure { println("Update bili_ticket failed: $it") }
+            }
+
+            onWebCookiesUpdated(buvid3, buvid4, bNut, biliTicket, biliTicketExpires)
+        }
+    }
+
+    private fun hmacSha256(key: String, data: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key.toByteArray(), "HmacSHA256"))
+        return mac.doFinal(data.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
     private fun createClient() {
@@ -177,17 +298,64 @@ object BiliHttpApi {
     }.body()
 
     /**
+     * 只解析响应最外层的 code，解析不出来时返回 null
+     */
+    private fun parseResponseCode(bodyText: String): Int? = runCatching {
+        json.parseToJsonElement(bodyText).jsonObject["code"]?.jsonPrimitive?.intOrNull
+    }.getOrNull()
+
+    /**
+     * 发起一个会被 wbi 签名的 GET 请求
+     *
+     * 相比直接 `client.get(...).body()` 多做两件事：
+     *
+     * 1. 签名失效时服务端返回 `{"code":-352,"message":"风控校验失败","data":{"v_voucher":"..."}}`，
+     *    data 里没有任何业务字段，直接反序列化只会抛出
+     *    `Fields [...] are required ... but they were missing at path: $.data`
+     *    这种看不懂的异常，把真正的错误码和 message 盖掉了。这里先读 code 再决定是否反序列化。
+     * 2. wbi key 轮换后本地缓存的旧 key 会一直签名失败，遇到 -352 时强制刷新 key 再重试一次，
+     *    让应用能自己恢复，而不需要用户重启。
+     */
+    private suspend inline fun <reified T> getWbiSigned(
+        urlString: String,
+        crossinline block: HttpRequestBuilder.() -> Unit
+    ): BiliResponse<T> {
+        var bodyText = client.get(urlString) { block() }.bodyAsText()
+
+        if (parseResponseCode(bodyText) == -352) {
+            println("Request $urlString rejected with -352, refreshing wbi keys and retrying")
+            updateWbi(force = true)
+            bodyText = client.get(urlString) { block() }.bodyAsText()
+        }
+
+        val code = parseResponseCode(bodyText)
+        if (code != null && code != 0) {
+            val message = runCatching {
+                json.parseToJsonElement(bodyText).jsonObject["message"]?.jsonPrimitive?.contentOrNull
+            }.getOrNull().orEmpty().ifBlank { "请求失败" }
+            // 与 BiliResponse.getResponseData 保持一致的异常类型，调用方无需改动
+            throw when (code) {
+                -101 -> AuthFailureException(message)
+                -352 -> RiskControlException(message)
+                else -> IllegalStateException("$message (code=$code)")
+            }
+        }
+
+        return json.decodeFromString(bodyText)
+    }
+
+    /**
      * 获取视频超详细信息
      */
     suspend fun getVideoDetail(
         av: Long? = null,
         bv: String? = null,
         sessData: String? = null
-    ): BiliResponse<VideoDetail> = client.get("/x/web-interface/wbi/view/detail") {
+    ): BiliResponse<VideoDetail> = getWbiSigned("/x/web-interface/wbi/view/detail") {
         parameter("aid", av)
         parameter("bvid", bv)
         sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
-    }.body()
+    }
 
     /**
      * 获取视频流
@@ -248,7 +416,7 @@ object BiliHttpApi {
         sessData: String? = null,
         dedeUserID: Long? = null,
         buvid3: String? = null
-    ): BiliResponse<PlayUrlData> = client.get("/pgc/player/web/playurl") {
+    ): BiliResponse<PlayUrlData> = getWbiSigned("/pgc/player/web/playurl") {
         require(av != null || bv != null) { "av and bv cannot be null at the same time" }
         require(epid != null || cid != null) { "epid and cid cannot be null at the same time" }
         av?.let { parameter("avid", it) }
@@ -270,7 +438,7 @@ object BiliHttpApi {
         if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString(";"))
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
-    }.body()
+    }
 
     /**
      * 获取剧集视频流 v2
@@ -290,7 +458,7 @@ object BiliHttpApi {
         fromClient: String? = null,
         sessData: String? = null,
         buvid3: String? = null
-    ): BiliResponse<PlayUrlV2Data> = client.get("/pgc/player/web/v2/playurl") {
+    ): BiliResponse<PlayUrlV2Data> = getWbiSigned("/pgc/player/web/v2/playurl") {
         av?.let { parameter("avid", it) }
         bv?.let { parameter("bvid", it) }
         epid?.let { parameter("ep_id", it) }
@@ -315,7 +483,7 @@ object BiliHttpApi {
         }
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
-    }.body()
+    }
 
     /**
      * 通过[cid]获取视频弹幕
@@ -746,11 +914,11 @@ object BiliHttpApi {
         cid: Long,
         sessData: String,
         buvid3: String
-    ): BiliResponse<VideoMoreInfo> = client.get("/x/player/wbi/v2") {
+    ): BiliResponse<VideoMoreInfo> = getWbiSigned("/x/player/wbi/v2") {
         parameter("aid", avid)
         parameter("cid", cid)
         header("Cookie", "buvid3=$buvid3; SESSDATA=$sessData;")
-    }.body()
+    }
 
     /**
      * 为视频[avid]或[bvid]点赞或取消赞
@@ -1497,25 +1665,28 @@ object BiliHttpApi {
 
     /**
      * 更新 wbi keys
+     *
+     * 每次 wbi 签名前都会调用，内部按 2 小时节流，因此不会给 nav 接口造成压力。
+     *
+     * @param force 忽略节流强制刷新，用于接口返回 -352 后的自愈重试
      */
-    suspend fun updateWbi() {
-        val now = System.currentTimeMillis()
-        val needToUpdate = wbiImgKey == null || wbiSubKey == null ||
-                (now - wbiLastRefreshDate > 2 * 60 * 60 * 1000L)
+    suspend fun updateWbi(force: Boolean = false) {
+        wbiUpdateMutex.withLock {
+            val now = System.currentTimeMillis()
+            val needToUpdate = force || wbiImgKey == null || wbiSubKey == null ||
+                    (now - wbiLastRefreshDate > 2 * 60 * 60 * 1000L)
 
-        if (!needToUpdate) {
-            println("Skip update wbi keys")
-            return
-        }
-
-        runCatching {
-            val wbiData = getWebInterfaceNav().data!!.wbiImg
-            wbiImgKey = wbiData.getImgKey()
-            wbiSubKey = wbiData.getSubKey()
-            println("Update wbi keys: $wbiImgKey, $wbiSubKey")
-            wbiLastRefreshDate = now
-        }.onFailure {
-            println("Update wbi data failed: ${it.stackTraceToString()}")
+            if (needToUpdate) {
+                runCatching {
+                    val wbiData = getWebInterfaceNav().data!!.wbiImg
+                    wbiImgKey = wbiData.getImgKey()
+                    wbiSubKey = wbiData.getSubKey()
+                    println("Update wbi keys: $wbiImgKey, $wbiSubKey")
+                    wbiLastRefreshDate = now
+                }.onFailure {
+                    println("Update wbi data failed: ${it.stackTraceToString()}")
+                }
+            }
         }
     }
 

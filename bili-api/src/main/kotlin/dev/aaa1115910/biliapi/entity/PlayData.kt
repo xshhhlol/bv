@@ -226,7 +226,8 @@ data class PlayData(
                         quality = it.id,
                         baseUrl = it.baseUrl,
                         bandwidth = it.bandwidth,
-                        codecId = it.id,
+                        // dash 流里 id 是清晰度，codecid 才是编码格式(7=AVC 12=HEVC 13=AV1)
+                        codecId = it.codecId,
                         width = it.width,
                         height = it.height,
                         frameRate = it.frameRate,
@@ -297,7 +298,8 @@ data class PlayData(
                     quality = it.id,
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
-                    codecId = it.id,
+                    // dash 流里 id 是清晰度，codecid 才是编码格式(7=AVC 12=HEVC 13=AV1)
+                    codecId = it.codecId,
                     width = it.width,
                     height = it.height,
                     frameRate = it.frameRate,
@@ -355,7 +357,8 @@ data class PlayData(
                     quality = it.id,
                     baseUrl = it.baseUrl,
                     bandwidth = it.bandwidth,
-                    codecId = it.id,
+                    // dash 流里 id 是清晰度，codecid 才是编码格式(7=AVC 12=HEVC 13=AV1)
+                    codecId = it.codecId,
                     width = it.width,
                     height = it.height,
                     frameRate = it.frameRate,

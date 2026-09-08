@@ -2,13 +2,17 @@ package dev.aaa1115910.bv.component
 
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -16,20 +20,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
+import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.TabRowScope
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.BVMotion
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable
@@ -44,14 +59,17 @@ fun TopNav(
 
     var selectedNav by remember { mutableStateOf(items.first()) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var hasFocus by remember { mutableStateOf(false) }
     val verticalPadding by animateDpAsState(
-        targetValue = if (isLargePadding) 12.dp else 6.dp,
+        targetValue = if (isLargePadding) 14.dp else 6.dp,
+        animationSpec = BVMotion.dpTween(),
         label = "top nav vertical padding"
     )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .onFocusChanged { hasFocus = it.hasFocus }
             .padding(12.dp, verticalPadding),
         horizontalArrangement = Arrangement.Center
     ) {
@@ -59,7 +77,10 @@ fun TopNav(
             modifier = Modifier
                 .focusRestorer(focusRequester),
             selectedTabIndex = selectedTabIndex,
-            separator = { Spacer(modifier = Modifier.width(12.dp)) },
+            // TabRow 自带的底色是一整条胶囊，会盖住下面的单个 tab 指示器，这里让它透明
+            containerColor = Color.Transparent,
+            separator = { Spacer(modifier = Modifier.width(8.dp)) },
+            indicator = { _, _ -> }
         ) {
             items.forEachIndexed { index, tab ->
                 NavItemTab(
@@ -67,6 +88,7 @@ fun TopNav(
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
                     topNavItem = tab,
                     selected = index == selectedTabIndex,
+                    active = hasFocus,
                     onFocus = {
                         selectedNav = tab
                         selectedTabIndex = index
@@ -84,25 +106,79 @@ private fun TabRowScope.NavItemTab(
     modifier: Modifier = Modifier,
     topNavItem: TopNavItem,
     selected: Boolean,
+    active: Boolean,
     onClick: () -> Unit,
     onFocus: () -> Unit
 ) {
     val context = LocalContext.current
 
+    // 选中态画在 Tab 内部而不是 TabRow 的 indicator 槽位：
+    // tv-material3 1.1.0-alpha01 里 indicator 会盖在 tab 内容上面，把后面的 tab 文字挡掉
+    val glassAlpha by animateFloatAsState(
+        targetValue = when {
+            selected && active -> 0.16f
+            selected -> 0.09f
+            else -> 0f
+        },
+        animationSpec = BVMotion.floatTween(),
+        label = "tab glass alpha"
+    )
+    val barAlpha by animateFloatAsState(
+        targetValue = when {
+            selected && active -> 1f
+            selected -> 0.6f
+            else -> 0f
+        },
+        animationSpec = BVMotion.floatTween(),
+        label = "tab bar alpha"
+    )
+
     Tab(
         modifier = modifier,
         selected = selected,
         onFocus = onFocus,
-        onClick = onClick
-    ) {
-        Text(
-            modifier = Modifier
-                .height(32.dp)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            text = topNavItem.getDisplayName(context),
-            color = LocalContentColor.current,
-            style = MaterialTheme.typography.labelLarge
+        onClick = onClick,
+        colors = TabDefaults.underlinedIndicatorTabColors(
+            contentColor = BVColor.TextSecondary,
+            inactiveContentColor = BVColor.TextTertiary,
+            selectedContentColor = BVColor.TextPrimary,
+            focusedContentColor = BVColor.TextPrimary,
+            focusedSelectedContentColor = BVColor.TextPrimary
         )
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White.copy(alpha = glassAlpha))
+                // 底部渐变短线直接按实测宽度画：Tab 是 wrap content，
+                // 子元素用 fillMaxWidth 拿不到宽度会被压成 0
+                .drawBehind {
+                    val alpha = barAlpha
+                    if (alpha <= 0.01f) return@drawBehind
+                    val barWidth = size.width * 0.5f
+                    val barHeight = 3.dp.toPx()
+                    val left = (size.width - barWidth) / 2f
+                    val top = size.height - barHeight - 3.dp.toPx()
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(BVColor.Pink, BVColor.Violet, BVColor.Cyan),
+                            startX = left,
+                            endX = left + barWidth
+                        ),
+                        topLeft = Offset(left, top),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = CornerRadius(barHeight / 2f),
+                        alpha = alpha
+                    )
+                }
+        ) {
+            Text(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp),
+                text = topNavItem.getDisplayName(context),
+                color = LocalContentColor.current,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
     }
 }
 

@@ -77,6 +77,8 @@ import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.FocusRingBrush
 import io.github.g0dkar.qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -530,15 +532,15 @@ fun UserItem(
                     modifier = Modifier
                         .size(80.dp),
                     colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color.DarkGray,
-                        focusedContainerColor = Color.Gray
+                        containerColor = BVColor.SurfaceVariant,
+                        focusedContainerColor = BVColor.SurfaceHighlight
                     ),
                     shape = ClickableSurfaceDefaults.shape(
                         shape = CircleShape
                     ),
                     border = ClickableSurfaceDefaults.border(
                         focusedBorder = Border(
-                            border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
+                            border = BorderStroke(width = 3.dp, brush = FocusRingBrush),
                             shape = CircleShape
                         )
                     ),
@@ -605,15 +607,15 @@ private fun AddUserItem(
                 .padding(18.dp)
                 .size(80.dp),
             colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.DarkGray,
-                focusedContainerColor = Color.Gray
+                containerColor = BVColor.SurfaceVariant,
+                focusedContainerColor = BVColor.SurfaceHighlight
             ),
             shape = ClickableSurfaceDefaults.shape(
                 shape = CircleShape
             ),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
+                    border = BorderStroke(width = 3.dp, brush = FocusRingBrush),
                     shape = CircleShape
                 )
             ),

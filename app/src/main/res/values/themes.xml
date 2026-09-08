@@ -1,13 +1,14 @@
 <resources>
 
     <style name="Theme.BV.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <item name="windowSplashScreenBackground">@color/bv_background</item>
         <item name="postSplashScreenTheme">@style/Theme.BV</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
     </style>
 
     <style name="Theme.BV" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <!-- 和 Compose 里的 BVColor.Ink 保持一致，启动时不会先闪一下纯黑 -->
+        <item name="android:windowBackground">@color/bv_background</item>
 
     </style>
 </resources>

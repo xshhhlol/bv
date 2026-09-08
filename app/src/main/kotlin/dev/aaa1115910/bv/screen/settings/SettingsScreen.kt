@@ -1,16 +1,23 @@
 package dev.aaa1115910.bv.screen.settings
 
 import android.content.Context
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,8 +30,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -32,11 +39,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ListItem
+import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.settings.settingFocusBar
+import dev.aaa1115910.bv.component.settings.settingListItemColors
+import dev.aaa1115910.bv.component.settings.settingListItemScale
 import dev.aaa1115910.bv.screen.settings.content.AboutSetting
 import dev.aaa1115910.bv.screen.settings.content.AudioVideoSetting
 import dev.aaa1115910.bv.screen.settings.content.InfoSetting
@@ -45,6 +55,9 @@ import dev.aaa1115910.bv.screen.settings.content.OtherSetting
 import dev.aaa1115910.bv.screen.settings.content.PlayerTypeSetting
 import dev.aaa1115910.bv.screen.settings.content.StorageSetting
 import dev.aaa1115910.bv.screen.settings.content.UISetting
+import dev.aaa1115910.bv.ui.theme.AccentBrush
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.BVMotion
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
 
@@ -58,10 +71,10 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            Box(
+            Column(
                 modifier = Modifier.padding(
                     start = 48.dp,
-                    top = 24.dp,
+                    top = 28.dp,
                     bottom = 8.dp,
                     end = 48.dp
                 )
@@ -73,13 +86,19 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text = stringResource(R.string.title_activity_settings),
-                        fontSize = 24.sp
-                    )
-                    Text(
-                        text = "",
-                        color = Color.White.copy(alpha = 0.6f)
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = BVColor.TextPrimary
                     )
                 }
+                Spacer(modifier = Modifier.height(10.dp))
+                // 标题下的渐变短线，给整页定一个视觉锚点
+                Box(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(AccentBrush)
+                )
             }
         }
     ) { innerPadding ->
@@ -201,10 +220,20 @@ fun SettingsMenuButton(
     onClick: () -> Unit = {},
     selected: Boolean
 ) {
+    val selectedProgress by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = BVMotion.smoothSpring(),
+        label = "settings menu selection"
+    )
+
     ListItem(
         modifier = modifier
+            .settingFocusBar { selectedProgress }
             .onFocusChanged { if (it.hasFocus) onFocus() else onLoseFocus() },
         selected = selected,
+        shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.medium),
+        colors = settingListItemColors(),
+        scale = settingListItemScale(),
         onClick = onClick,
         headlineContent = {
             Text(

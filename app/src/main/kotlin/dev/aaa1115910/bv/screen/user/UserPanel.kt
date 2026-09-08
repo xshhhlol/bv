@@ -1,6 +1,9 @@
 package dev.aaa1115910.bv.component
 
 import android.view.KeyEvent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,7 +24,6 @@ import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.AccountBox
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
@@ -46,11 +50,20 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.aaa1115910.bv.ui.theme.AccentBrush
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.BVMotion
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.FocusRingBrush
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.focusHighlight
 import dev.aaa1115910.bv.util.requestFocus
 
-private val lineHeight = 80.dp
+private val lineHeight = 84.dp
+
+/** 面板整体宽度：三个操作按钮 + 间隙，用它保证上下两块严格对齐 */
+private val panelWidth = 372.dp
+private val actionButtonWidth = 116.dp
 
 @Composable
 fun UserPanel(
@@ -97,8 +110,7 @@ fun UserPanel(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             UserPanelMyItem(
-                modifier = Modifier
-                    .width(300.dp),
+                modifier = Modifier.width(panelWidth),
                 username = username,
                 face = face,
                 level = level,
@@ -106,11 +118,10 @@ fun UserPanel(
                 nextLevelExp = nextLevelExp,
             )
 
-            val buttonWidth = 120.dp
             Row {
                 UserPanelSmallItem(
                     modifier = Modifier
-                        .width(buttonWidth)
+                        .width(actionButtonWidth)
                         .focusRequester(focusRequester)
                         .onPreviewKeyEvent {
                             when (it.nativeKeyEvent.keyCode) {
@@ -122,6 +133,7 @@ fun UserPanel(
                         },
                     title = if (inIncognitoMode) "隐身开启" else "隐身关闭",
                     icon = if (inIncognitoMode) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    highlighted = inIncognitoMode,
                     onClick = {
                         inIncognitoMode = !inIncognitoMode
                         Prefs.incognitoMode = inIncognitoMode
@@ -129,7 +141,7 @@ fun UserPanel(
                 )
                 UserPanelSmallItem(
                     modifier = Modifier
-                        .width(buttonWidth),
+                        .width(actionButtonWidth),
                     title = "正在关注",
                     icon = Icons.AutoMirrored.Rounded.ListAlt,
                     onClick = {
@@ -139,7 +151,7 @@ fun UserPanel(
                 )
                 UserPanelSmallItem(
                     modifier = Modifier
-                        .width(buttonWidth)
+                        .width(actionButtonWidth)
                         .onPreviewKeyEvent {
                             when (it.nativeKeyEvent.keyCode) {
                                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
@@ -169,7 +181,7 @@ private fun UserPanelMyItem(
     currentExp: Int,
     nextLevelExp: Int
 ) {
-    val progress = currentExp.toFloat() / nextLevelExp.coerceAtLeast(1)
+    val progress = (currentExp.toFloat() / nextLevelExp.coerceAtLeast(1)).coerceIn(0f, 1f)
 
     Surface(
         modifier = modifier
@@ -179,13 +191,13 @@ private fun UserPanelMyItem(
             .height(lineHeight),
         shape = MaterialTheme.shapes.medium,
         colors = SurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = BVColor.Surface,
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -193,7 +205,7 @@ private fun UserPanelMyItem(
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(1f)
-                    .padding(end = 12.dp),
+                    .padding(end = 14.dp),
                 verticalArrangement = Arrangement.Center
             ) {
                 Row(
@@ -201,37 +213,71 @@ private fun UserPanelMyItem(
                 ) {
                     Text(
                         text = username,
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.titleMedium,
+                        color = BVColor.TextPrimary
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Lv.$level",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            color = MaterialTheme.colorScheme.primary
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // 等级做成小徽章，比纯文字更像「身份」
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(BVColor.Pink.copy(alpha = 0.16f))
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "Lv.$level",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = BVColor.PinkBright
                         )
-                    )
+                    }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                )
+                LevelProgressBar(progress = progress)
             }
 
-            AsyncImage(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape),
-                model = face,
-                contentDescription = null,
-                contentScale = ContentScale.Crop
-            )
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .border(2.dp, FocusRingBrush, CircleShape)
+                )
+                AsyncImage(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(BVColor.SurfaceVariant),
+                    model = face,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
+    }
+}
+
+/** 经验条，用品牌渐变而不是单色，和面板其他强调元素统一 */
+@Composable
+private fun LevelProgressBar(
+    modifier: Modifier = Modifier,
+    progress: Float
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(5.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(3.dp))
+                .background(AccentBrush)
+        )
     }
 }
 
@@ -241,38 +287,58 @@ private fun UserPanelSmallItem(
     modifier: Modifier = Modifier,
     title: String,
     icon: ImageVector,
+    highlighted: Boolean = false,
     onClick: () -> Unit
 ) {
+    var hasFocus by remember { mutableStateOf(false) }
+    val iconColor by animateColorAsState(
+        targetValue = when {
+            hasFocus -> BVColor.TextPrimary
+            highlighted -> BVColor.Pink
+            else -> BVColor.TextSecondary
+        },
+        animationSpec = BVMotion.colorTween(),
+        label = "user panel icon color"
+    )
+
     Surface(
         modifier = modifier
             .padding(4.dp)
-            .height(lineHeight),
+            .height(lineHeight)
+            .focusHighlight(
+                shape = MaterialTheme.shapes.medium,
+                focusedScale = 1.04f,
+                borderWidth = 2.dp,
+                glowElevation = 14.dp
+            )
+            .onFocusChanged { hasFocus = it.hasFocus },
         onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+            containerColor = BVColor.Surface,
+            focusedContainerColor = BVColor.SurfaceHighlight,
+            pressedContainerColor = BVColor.SurfaceHighlight
         )
     ) {
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
         ) {
             Icon(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .align(Alignment.TopStart),
+                modifier = Modifier.align(Alignment.TopStart),
                 imageVector = icon,
-                contentDescription = null
+                contentDescription = null,
+                tint = iconColor
             )
             Text(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .align(Alignment.BottomStart),
+                modifier = Modifier.align(Alignment.BottomStart),
                 text = title,
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyMedium,
+                color = BVColor.TextPrimary
             )
         }
-
     }
 }
 

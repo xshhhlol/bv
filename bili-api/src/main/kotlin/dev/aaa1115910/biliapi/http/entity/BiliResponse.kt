@@ -32,7 +32,8 @@ data class BiliResponse<T>(
 data class BiliResponseWithoutData(
     val code: Int,
     val message: String,
-    val ttl: Int
+    // 部分接口不返回 ttl，声明成必填会直接反序列化失败
+    val ttl: Int? = null
 )
 
 @Suppress("unused")

@@ -10,21 +10,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Checkbox
 import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
 @Composable
@@ -93,9 +97,11 @@ fun SoftKeyboard(
             Surface(
                 modifier = Modifier,
                 onClick = { onEnableSearchWithProxyChange(!enableSearchWithProxy) },
+                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                 colors = ClickableSurfaceDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-                    pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+                    containerColor = Color.White.copy(alpha = 0.05f),
+                    focusedContainerColor = BVColor.SurfaceHighlight,
+                    pressedContainerColor = BVColor.SurfaceHighlight
                 )
             ) {
                 Row(
@@ -116,6 +122,17 @@ fun SoftKeyboard(
     }
 }
 
+/** 按键配色：默认几乎透明，获焦时整颗键亮成品牌粉，遥控器在哪一目了然 */
+@Composable
+private fun softKeyColors() = ClickableSurfaceDefaults.colors(
+    containerColor = Color.White.copy(alpha = 0.05f),
+    contentColor = BVColor.TextSecondary,
+    focusedContainerColor = BVColor.Pink,
+    focusedContentColor = Color.White,
+    pressedContainerColor = BVColor.PinkDeep,
+    pressedContentColor = Color.White
+)
+
 @Composable
 fun SoftKeyboardKey(
     modifier: Modifier = Modifier,
@@ -124,7 +141,10 @@ fun SoftKeyboardKey(
 ) {
     Surface(
         modifier = modifier,
-        onClick = onClick
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+        colors = softKeyColors(),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f)
     ) {
         Box(
             modifier = Modifier.size(38.dp),
@@ -132,7 +152,8 @@ fun SoftKeyboardKey(
         ) {
             Text(
                 text = key,
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                color = LocalContentColor.current
             )
         }
     }
@@ -146,7 +167,10 @@ fun SoftKeyboardButton(
 ) {
     Surface(
         modifier = modifier.height(38.dp),
-        onClick = onClick
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+        colors = softKeyColors(),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f)
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -154,7 +178,8 @@ fun SoftKeyboardButton(
         ) {
             Text(
                 text = key,
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                color = LocalContentColor.current
             )
         }
     }

@@ -85,6 +85,10 @@ object Prefs {
     var refreshToken by pref(PrefKeys.prefRefreshTokenKey, "")
     var buvid by pref(PrefKeys.prefBuvidKey, "")
     var buvid3 by pref(PrefKeys.prefBuvid3Key, "")
+    var buvid4 by pref(PrefKeys.prefBuvid4Key, "")
+    var bNut by pref(PrefKeys.prefBNutKey, "")
+    var biliTicket by pref(PrefKeys.prefBiliTicketKey, "")
+    var biliTicketExpires by pref(PrefKeys.prefBiliTicketExpiresKey, 0L)
 
     // =========================================================================
     // 网络 & API
@@ -203,6 +207,7 @@ object Prefs {
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
     var playerCustomShortcuts by pref(PrefKeys.prefPlayerCustomShortcutsKey, "")
+    var playerControllerButtons by pref(PrefKeys.prefPlayerControllerButtonsKey, "")
 
     // =========================================================================
     // 应用界面
@@ -336,6 +341,10 @@ private object PrefKeys {
     val prefRefreshTokenKey = stringPreferencesKey("refresh_token")
     val prefBuvidKey = stringPreferencesKey("random_buvid")
     val prefBuvid3Key = stringPreferencesKey("random_buvid3")
+    val prefBuvid4Key = stringPreferencesKey("buvid4")
+    val prefBNutKey = stringPreferencesKey("b_nut")
+    val prefBiliTicketKey = stringPreferencesKey("bili_ticket")
+    val prefBiliTicketExpiresKey = longPreferencesKey("bili_ticket_expires")
 
     // 网络 & API
     val prefApiTypeKey = intPreferencesKey("api_type")
@@ -374,6 +383,7 @@ private object PrefKeys {
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefPlayerCustomShortcutsKey = stringPreferencesKey("player_custom_shortcuts")
+    val prefPlayerControllerButtonsKey = stringPreferencesKey("player_controller_buttons")
 
     // 应用界面
     val prefDensityKey = floatPreferencesKey("density")

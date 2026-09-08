@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -64,6 +65,7 @@ import dev.aaa1115910.bv.component.search.SoftKeyboard
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -218,8 +220,11 @@ private fun SearchInput(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearch(searchKeyword) }),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.inverseSurface,
-                    cursorColor = MaterialTheme.colorScheme.inverseSurface
+                    focusedBorderColor = BVColor.Pink,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.16f),
+                    focusedTextColor = BVColor.TextPrimary,
+                    unfocusedTextColor = BVColor.TextPrimary,
+                    cursorColor = BVColor.Pink
                 )
             )
             SoftKeyboard(

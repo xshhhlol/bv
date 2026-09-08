@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -19,15 +20,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.VideoCardSkeleton
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
@@ -85,6 +89,11 @@ fun PopularScreen(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 首屏还没数据时先铺骨架，比直接空一片再「啪」地填满要稳当
+        if (popularViewModel.popularVideoList.isEmpty() && popularViewModel.loading) {
+            items(count = 8) { VideoCardSkeleton() }
+        }
+
         itemsIndexed(
             items = popularViewModel.popularVideoList,
             key = { index, _ -> index }
@@ -130,10 +139,12 @@ fun PopularScreen(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     modifier = Modifier
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
                     textAlign = TextAlign.Center,
                     text = "没有更多了捏",
-                    color = Color.White
+                    style = MaterialTheme.typography.labelMedium,
+                    color = BVColor.TextTertiary
                 )
             }
         }

@@ -31,6 +31,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -54,8 +55,11 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.entity.ControllerButton
+import dev.aaa1115910.bv.entity.ControllerButtonsStore
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.FocusRingBrush
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
 import kotlinx.coroutines.delay
@@ -261,9 +265,10 @@ fun ControllerVideoInfoBottom(
             modifier = Modifier
                 .padding(horizontal = 24.dp)
                 .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = if (isSeekFocused) 1f else 0f),
-                    shape = RoundedCornerShape(8.dp)
+                    width = 2.dp,
+                    // 和卡片、按钮统一成同一条渐变焦点环
+                    brush = if (isSeekFocused) FocusRingBrush else SolidColor(Color.Transparent),
+                    shape = RoundedCornerShape(10.dp)
                 )
                 .focusable()
                 .focusRequester(seekFocusRequester)
@@ -314,20 +319,44 @@ fun ControllerVideoInfoBottom(
             )
         }
 
-        val icons = listOfNotNull(
-            (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
-            ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
-            (R.drawable.settings_24px to "打开设置") to onShowSettings,
-            if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
-            if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
-            if (!fromSeason)(R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
-            ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
-        )
+        // 控制条按钮的顺序、显隐与默认焦点由设置决定，这里只负责把配置渲染出来
+        val buttonConfigs = remember { ControllerButtonsStore.get() }
+        val visibleButtons = buttonConfigs.filter { config ->
+            !config.hidden && (config.button.availableInSeason || !fromSeason)
+        }
+        // 有开关态的按钮图标要跟着当前状态走，不能用枚举里的静态图标
+        val iconOf: (ControllerButton) -> Int = { button ->
+            when (button) {
+                ControllerButton.Danmaku ->
+                    if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px
+
+                ControllerButton.PlayMode ->
+                    if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px
+
+                else -> button.icon
+            }
+        }
+        val actionOf: (ControllerButton) -> () -> Unit = { button ->
+            when (button) {
+                ControllerButton.PlayPause -> onPlayPause
+                ControllerButton.Danmaku -> onDanmakuSwitchChange
+                ControllerButton.Settings -> onShowSettings
+                ControllerButton.VideoDetail -> onGoToVideoInfo
+                ControllerButton.UpSpace -> onGoToUpPage
+                ControllerButton.Related -> onShowRelatedVideos
+                ControllerButton.PlayMode -> onToggleLoop
+            }
+        }
+
+        // 默认焦点按钮被隐藏或在番剧下不可用时，退回第一个可见按钮。
+        // 焦点仍由进度条按下键时的 buttonsFocusRequester 触发，这里只决定它落在哪个按钮上
+        val defaultFocusIndex = visibleButtons
+            .indexOfFirst { it.isDefaultFocus }
+            .coerceAtLeast(0)
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .focusRequester(buttonsFocusRequester)
                 .onKeyEvent {
                     if (it.key == Key.DirectionUp) {
                         if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
@@ -339,16 +368,22 @@ fun ControllerVideoInfoBottom(
                 .padding(horizontal = 24.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
-            icons.forEach { (icon, function) ->
+            visibleButtons.forEachIndexed { index, config ->
+                val button = config.button
                 Surface(
-                    onClick = function,
+                    modifier = if (index == defaultFocusIndex) {
+                        Modifier.focusRequester(buttonsFocusRequester)
+                    } else {
+                        Modifier
+                    },
+                    onClick = actionOf(button),
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
                     ),
                 ) {
                     Icon(
-                        painter = painterResource(id = icon.first),
-                        contentDescription = icon.second,
+                        painter = painterResource(id = iconOf(button)),
+                        contentDescription = button.title,
                         modifier = Modifier.padding(5.dp)
                     )
                 }

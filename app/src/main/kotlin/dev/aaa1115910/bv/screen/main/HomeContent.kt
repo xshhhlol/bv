@@ -1,11 +1,6 @@
 package dev.aaa1115910.bv.screen.main
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -31,6 +26,7 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
+import dev.aaa1115910.bv.ui.theme.tabContentTransform
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.UserViewModel
@@ -171,14 +167,9 @@ fun HomeContent(
                 targetState = selectedTab,
                 label = "home animated content",
                 transitionSpec = {
-                    val coefficient = 10
-                    if (reorderedItems.indexOf(targetState) < reorderedItems.indexOf(initialState)) {
-                        fadeIn() + slideInHorizontally { -it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { it / coefficient }
-                    } else {
-                        fadeIn() + slideInHorizontally { it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { -it / coefficient }
-                    }
+                    tabContentTransform(
+                        forward = reorderedItems.indexOf(targetState) >= reorderedItems.indexOf(initialState)
+                    )
                 }
             ) { screen ->
                 when (screen) {

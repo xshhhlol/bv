@@ -1,11 +1,6 @@
 package dev.aaa1115910.bv.screen.main
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -41,6 +36,7 @@ import dev.aaa1115910.bv.viewmodel.pgc.PgcGuoChuangViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcMovieViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcTvViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcVarietyViewModel
+import dev.aaa1115910.bv.ui.theme.tabContentTransform
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -134,14 +130,7 @@ fun PgcContent(
                 targetState = selectedTab,
                 label = "pgc animated content",
                 transitionSpec = {
-                    val coefficient = 10
-                    if (targetState.ordinal < initialState.ordinal) {
-                        fadeIn() + slideInHorizontally { -it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { it / coefficient }
-                    } else {
-                        fadeIn() + slideInHorizontally { it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { -it / coefficient }
-                    }
+                    tabContentTransform(forward = targetState.ordinal >= initialState.ordinal)
                 }
             ) { screen ->
                 when (screen) {

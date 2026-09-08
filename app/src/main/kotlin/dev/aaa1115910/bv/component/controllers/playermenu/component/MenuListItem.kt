@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +35,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
 @Composable
@@ -114,8 +116,17 @@ fun MenuListItem(
                 }
             }
         },
+        shape = ListItemDefaults.shape(shape = MaterialTheme.shapes.small),
         colors = ListItemDefaults.colors(
-            selectedContainerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.4f),
+            containerColor = Color.Transparent,
+            contentColor = BVColor.TextSecondary,
+            // 当前项用品牌粉标出来，获焦项整条点亮，两种状态一眼能分清
+            selectedContainerColor = BVColor.Pink.copy(alpha = 0.18f),
+            selectedContentColor = BVColor.PinkBright,
+            focusedContainerColor = BVColor.SurfaceHighlight,
+            focusedContentColor = BVColor.TextPrimary,
+            focusedSelectedContainerColor = BVColor.Pink,
+            focusedSelectedContentColor = Color.White
         )
     )
 }

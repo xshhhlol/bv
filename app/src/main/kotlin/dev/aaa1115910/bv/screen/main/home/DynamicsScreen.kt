@@ -26,6 +26,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.VideoCardSkeleton
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -93,6 +94,11 @@ fun DynamicsScreen(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 首屏还没数据时先铺骨架，比直接空一片再「啪」地填满要稳当
+            if (dynamicViewModel.dynamicList.isEmpty() && dynamicViewModel.loading) {
+                items(count = 8) { VideoCardSkeleton() }
+            }
+
             itemsIndexed(
                 items = dynamicViewModel.dynamicList,
                 key = { index, _ -> index }

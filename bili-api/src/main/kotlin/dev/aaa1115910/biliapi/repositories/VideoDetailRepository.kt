@@ -8,6 +8,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.util.AvBvConverter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -34,17 +35,19 @@ class VideoDetailRepository(
         return when (preferApiType) {
             ApiType.Web -> {
                 withContext(Dispatchers.IO) {
-                    val videoDetailWithoutUserActions = async {
-                        val httpVideoDetail = BiliHttpApi.getVideoDetail(
-                            av = aid,
-                            sessData = authRepository.sessionData ?: ""
-                        ).getResponseData()
-                        VideoDetail.fromVideoDetail(httpVideoDetail)
-                    }
+                    // 这里刻意串行请求。并发打出一串 wbi 接口很容易被判定成机器行为，
+                    // 详情页概率性返回 -352 风控校验失败，串行后请求节奏更接近真实 web 端
+                    val sessData = authRepository.sessionData ?: ""
 
-                    //check liked, favoured, coined status...
-                    val isFavoured = async {
-                        runCatching {
+                    val detail = BiliHttpApi.getVideoDetail(
+                        // 用 bvid 请求，web 端就是这么发的，用 aid 更容易被风控盯上
+                        bv = AvBvConverter.av2bv(aid),
+                        sessData = sessData
+                    ).getResponseData().let { VideoDetail.fromVideoDetail(it) }
+
+                    // 未登录时这三个状态必然是 false，没必要白白多打三个接口去撞风控
+                    val userActions = if (sessData.isNotBlank()) {
+                        val isFavoured = runCatching {
                             favoriteRepository.checkVideoFavoured(
                                 aid = aid,
                                 preferApiType = ApiType.Web
@@ -52,59 +55,47 @@ class VideoDetailRepository(
                         }.onFailure {
                             println("Check video favoured failed: $it")
                         }.getOrDefault(false)
-                    }
 
-                    val isLiked = async {
-                        runCatching {
-                            likeRepository.checkVideoLiked(
-                                aid = aid,
-                            )
+                        val isLiked = runCatching {
+                            likeRepository.checkVideoLiked(aid = aid)
                         }.onFailure {
                             println("Check video liked failed: $it")
                         }.getOrDefault(false)
-                    }
 
-                    val isCoined = async {
-                        runCatching {
-                            coinRepository.checkVideoCoined(
-                                aid = aid,
-                            )
+                        val isCoined = runCatching {
+                            coinRepository.checkVideoCoined(aid = aid)
                         }.onFailure {
                             println("Check video coined failed: $it")
                         }.getOrDefault(false)
-                    }
 
-
-                    val historyAndPlayerIcon = async {
-                        runCatching {
-                            val videoModeInfo = BiliHttpApi.getVideoMoreInfo(
-                                avid = aid,
-                                cid = videoDetailWithoutUserActions.await().cid,
-                                sessData = authRepository.sessionData ?: "",
-                                buvid3 = authRepository.buvid3 ?: ""
-                            ).getResponseData()
-                            val history = VideoDetail.History(
-                                progress = videoModeInfo.lastPlayTime / 1000,
-                                lastPlayedCid = videoModeInfo.lastPlayCid
-                            )
-                            history
-                        }.onFailure {
-                            println("Get video history failed: $it")
-                        }.getOrDefault(VideoDetail.History(0, 0))
-                    }
-
-                    videoDetailWithoutUserActions.await().let { detail ->
-                        val newUserActions = detail.userActions.copy(
-                            favorite = isFavoured.await(),
-                            like = isLiked.await(),
-                            coin = isCoined.await()
+                        detail.userActions.copy(
+                            favorite = isFavoured,
+                            like = isLiked,
+                            coin = isCoined
                         )
-                        val newHistory = historyAndPlayerIcon.await()
-                        detail.copy(
-                            userActions = newUserActions,
-                            history = newHistory
-                        )
+                    } else {
+                        detail.userActions
                     }
+
+                    val history = runCatching {
+                        val videoModeInfo = BiliHttpApi.getVideoMoreInfo(
+                            avid = aid,
+                            cid = detail.cid,
+                            sessData = sessData,
+                            buvid3 = authRepository.buvid3 ?: ""
+                        ).getResponseData()
+                        VideoDetail.History(
+                            progress = videoModeInfo.lastPlayTime / 1000,
+                            lastPlayedCid = videoModeInfo.lastPlayCid
+                        )
+                    }.onFailure {
+                        println("Get video history failed: $it")
+                    }.getOrDefault(VideoDetail.History(0, 0))
+
+                    detail.copy(
+                        userActions = userActions,
+                        history = history
+                    )
                 }
             }
 

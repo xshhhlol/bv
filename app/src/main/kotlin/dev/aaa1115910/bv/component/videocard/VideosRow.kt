@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component.videocard
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.BVMotion
 
 @Composable
 fun VideosRow(
@@ -41,10 +45,16 @@ fun VideosRow(
     val focusRequester = remember { FocusRequester() }
     val density = LocalDensity.current
     var hasFocus by remember { mutableStateOf(false) }
-    val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (hasFocus) 30f else 14f,
-        label = "title font size"
+    // 用缩放代替直接动 fontSize：字号变化每帧都要重新测量排版，缩放只走绘制
+    val titleScale by animateFloatAsState(
+        targetValue = if (hasFocus) 1f else 0.47f,
+        animationSpec = BVMotion.focusSpring(),
+        label = "title scale"
+    )
+    val titleColor by animateColorAsState(
+        targetValue = if (hasFocus) BVColor.TextPrimary else BVColor.TextTertiary,
+        animationSpec = BVMotion.colorTween(),
+        label = "title color"
     )
     var rowHeight by remember { mutableStateOf(0.dp) }
 
@@ -52,9 +62,16 @@ fun VideosRow(
         modifier = modifier.onFocusChanged { hasFocus = it.hasFocus }
     ) {
         Text(
-            modifier = Modifier.padding(start = 50.dp),
+            modifier = Modifier
+                .padding(start = 50.dp)
+                .graphicsLayer {
+                    scaleX = titleScale
+                    scaleY = titleScale
+                    // 以左侧文字基线为锚点缩放，标题才是「长大」而不是「往中间挪」
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                },
             text = header,
-            fontSize = titleFontSize.sp,
+            fontSize = 30.sp,
             color = titleColor
         )
         LazyRow(

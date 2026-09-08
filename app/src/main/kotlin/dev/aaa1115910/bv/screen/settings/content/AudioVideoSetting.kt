@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.entity.ControllerButtonsStore
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
@@ -45,6 +46,8 @@ fun AudioVideoSetting(
     var showPlaySpeedDialog by remember { mutableStateOf(false) }
     var showActionAfterPlayDialog by remember { mutableStateOf(false) }
     var showPlayerCustomShortcutsDialog by remember { mutableStateOf(false) }
+    var showPlayerControllerButtonsDialog by remember { mutableStateOf(false) }
+    var controllerButtons by remember { mutableStateOf(ControllerButtonsStore.get()) }
 
     var selectedResolution by remember { mutableStateOf(Prefs.defaultQuality) }
     var selectedVideoCodec by remember { mutableStateOf(Prefs.defaultVideoCodec) }
@@ -98,6 +101,11 @@ fun AudioVideoSetting(
             title = "自定义播放快捷键",
             supportText = "当前：${playerCustomShortcuts.size} 个绑定",
             onClick = { showPlayerCustomShortcutsDialog = true }
+        )
+        SettingListItem(
+            title = "控制条按钮",
+            supportText = "当前：显示 ${controllerButtons.count { !it.hidden }} 个，隐藏 ${controllerButtons.count { it.hidden }} 个",
+            onClick = { showPlayerControllerButtonsDialog = true }
         )
         SettingSwitchListItem(
             title = stringResource(R.string.settings_media_software_video_renderer_title),
@@ -188,6 +196,13 @@ fun AudioVideoSetting(
         PlayerCustomShortcutsDialog(
             onDismiss = { showPlayerCustomShortcutsDialog = false },
             onShortcutsChanged = { playerCustomShortcuts = it }
+        )
+    }
+
+    if (showPlayerControllerButtonsDialog) {
+        PlayerControllerButtonsDialog(
+            onDismiss = { showPlayerControllerButtonsDialog = false },
+            onConfigsChanged = { controllerButtons = it }
         )
     }
 }

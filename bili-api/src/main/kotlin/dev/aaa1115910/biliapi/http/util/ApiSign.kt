@@ -70,11 +70,19 @@ fun HttpRequestBuilder.encAppGet() {
 }
 
 suspend fun HttpRequestBuilder.encWbi() {
-    if (BiliHttpApi.wbiImgKey == null || BiliHttpApi.wbiSubKey == null) BiliHttpApi.updateWbi()
+    // wbi key 每天都会轮换。这里每次签名前都尝试刷新（updateWbi 内部按 2 小时节流），
+    // 否则常驻内存的电视端会一直用启动时那份 key，轮换后所有 wbi 接口都返回 -352 风控校验失败
+    BiliHttpApi.ensureWebCookies()
+    BiliHttpApi.updateWbi()
     val mixinKey = getMixinKey(
         requireNotNull(BiliHttpApi.wbiImgKey) { "wbiImgKey can't be null!" } +
                 requireNotNull(BiliHttpApi.wbiSubKey) { "wbiSubKey can't be null!" }
     )
+
+    // HttpRequestRetry 重试时会复用同一个 request builder，
+    // 重新签名前必须先清掉上一次的签名参数，否则会追加出重复的 wts/w_rid 导致签名失效
+    url.parameters.remove("wts")
+    url.parameters.remove("w_rid")
 
     val wts = (System.currentTimeMillis() / 1000).toInt()
     parameter("wts", wts)
@@ -143,13 +151,19 @@ fun HttpClient.injectBuvid3Cookie() = plugin(HttpSend).intercept { request ->
                 request.url.encodedPath.contains("/x/player/wbi/playurl")
 
     if (!request.isAppRequest && !isPlayUrlRequest) {
-        val buvid3 = BiliHttpApi.buvid3
-        if (buvid3.isNotBlank()) {
-            val existing = request.headers["Cookie"] ?: ""
-            if (!existing.contains("buvid3=")) {
-                request.headers["Cookie"] =
-                    if (existing.isNotBlank()) "buvid3=$buvid3; $existing" else "buvid3=$buvid3"
-            }
+        val existing = request.headers["Cookie"] ?: ""
+        // 真实 web 端会同时带上这几个指纹 cookie，缺失时更容易触发风控
+        val extras = listOf(
+            "buvid3" to BiliHttpApi.buvid3,
+            "buvid4" to BiliHttpApi.buvid4,
+            "b_nut" to BiliHttpApi.bNut,
+            "bili_ticket" to BiliHttpApi.biliTicket
+        ).filter { (name, value) -> value.isNotBlank() && !existing.contains("$name=") }
+            .joinToString("; ") { (name, value) -> "$name=$value" }
+
+        if (extras.isNotBlank()) {
+            request.headers["Cookie"] =
+                if (existing.isNotBlank()) "$extras; $existing" else extras
         }
     }
     execute(request)

@@ -109,7 +109,9 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.focusHighlight
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedBorder
@@ -539,6 +541,8 @@ fun VideoInfoData(
                 .focusRequester(defaultFocusRequester)
                 .weight(3f)
                 .aspectRatio(1.6f)
+                // 和列表里的卡片用同一套焦点语言：渐变环 + 光晕 + 轻微放大
+                .focusHighlight(shape = MaterialTheme.shapes.large, focusedScale = 1.03f)
                 .onGloballyPositioned { coordinates ->
                     heightIs = with(localDensity) { coordinates.size.height.toDp() }
                 },
@@ -546,12 +550,8 @@ fun VideoInfoData(
             shape = ClickableSurfaceDefaults.shape(
                 shape = MaterialTheme.shapes.large,
             ),
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
-                    shape = MaterialTheme.shapes.large
-                )
-            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+            border = ClickableSurfaceDefaults.border(focusedBorder = Border.None),
         ) {
             AsyncImage(
                 modifier = Modifier.fillMaxSize(),
@@ -572,10 +572,10 @@ fun VideoInfoData(
             ) {
                 Text(
                     text = videoDetail.title,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = Color.White
+                    color = BVColor.TextPrimary
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -584,6 +584,7 @@ fun VideoInfoData(
                 ) {
                     CompositionLocalProvider(
                         LocalTextStyle provides MaterialTheme.typography.labelMedium
+                            .copy(color = BVColor.TextSecondary)
                     ) {
                         Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
                         Text(text = "·")

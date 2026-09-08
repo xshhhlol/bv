@@ -2,14 +2,13 @@ package dev.aaa1115910.bv.util
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.border
 import androidx.compose.material3.ShapeDefaults
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,26 +17,88 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.caverock.androidsvg.SVG
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.BVMotion
+import dev.aaa1115910.bv.ui.theme.FocusRingBrush
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMobMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuWebMaskFrame
 
 /**
- * 获取到焦点时显示白色边框
+ * 焦点高亮：缩放 + 渐变描边 + 彩色光晕。
+ *
+ * 缩放和光晕都写在 graphicsLayer / draw 的 lambda 里，动画值只在绘制阶段读取，
+ * 这样每帧不会触发重组，长列表里滑动才不会掉帧。
+ *
+ * @param shape 描边与光晕的形状，需要和被包裹内容的圆角保持一致
+ * @param focusedScale 获焦时放大到的倍数
+ * @param ringBrush 描边渐变，默认是「粉 → 紫 → 青」
+ */
+fun Modifier.focusHighlight(
+    shape: Shape = ShapeDefaults.Large,
+    focusedScale: Float = 1.06f,
+    borderWidth: Dp = 3.dp,
+    glowColor: Color = BVColor.FocusGlow,
+    glowElevation: Dp = 20.dp,
+    ringBrush: Brush? = null
+): Modifier = composed {
+    var hasFocus by remember { mutableStateOf(false) }
+    val progress by animateFloatAsState(
+        targetValue = if (hasFocus) 1f else 0f,
+        animationSpec = BVMotion.focusSpring(),
+        label = "focus highlight"
+    )
+    val brush = ringBrush ?: FocusRingBrush
+
+    onFocusChanged { hasFocus = it.hasFocus }
+        .graphicsLayer {
+            // 弹簧会略微过冲，这里不做 coerce，让放大有一点回弹
+            val scaleValue = 1f + (focusedScale - 1f) * progress
+            scaleX = scaleValue
+            scaleY = scaleValue
+            this.shape = shape
+            clip = false
+            val visible = progress.coerceIn(0f, 1f)
+            shadowElevation = glowElevation.toPx() * visible
+            ambientShadowColor = glowColor
+            spotShadowColor = glowColor
+        }
+        .drawWithContent {
+            drawContent()
+            val visible = progress.coerceIn(0f, 1f)
+            if (visible > 0.01f) {
+                drawOutline(
+                    outline = shape.createOutline(size, layoutDirection, this),
+                    brush = brush,
+                    alpha = visible,
+                    style = Stroke(width = borderWidth.toPx())
+                )
+            }
+        }
+}
+
+/**
+ * 获取到焦点时显示描边
+ *
+ * @param animate 描边呼吸闪烁，用来提示「这里还需要再按一下」
  */
 fun Modifier.focusedBorder(
     shape: Shape = ShapeDefaults.Large,
@@ -46,25 +107,34 @@ fun Modifier.focusedBorder(
     val infiniteTransition = rememberInfiniteTransition(label = "infinite border color transition")
     var hasFocus by remember { mutableStateOf(false) }
 
-    val animateColor by infiniteTransition.animateColor(
-        initialValue = Color.White.copy(alpha = 1f),
-        targetValue = Color.White.copy(alpha = 0.1f),
+    val breathAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.15f,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "focused border animate color"
+        label = "focused border breath alpha"
     )
-    val borderColor = if (hasFocus) {
-        if (animate) animateColor else Color.White
-    } else Color.Transparent
+    val appearAlpha by animateFloatAsState(
+        targetValue = if (hasFocus) 1f else 0f,
+        animationSpec = BVMotion.smoothSpring(),
+        label = "focused border alpha"
+    )
 
     onFocusChanged { hasFocus = it.hasFocus }
-        .border(
-            width = 3.dp,
-            color = borderColor,
-            shape = shape
-        )
+        .drawWithContent {
+            drawContent()
+            val alpha = appearAlpha.coerceIn(0f, 1f) * (if (animate) breathAlpha else 1f)
+            if (alpha > 0.01f) {
+                drawOutline(
+                    outline = shape.createOutline(size, layoutDirection, this),
+                    brush = FocusRingBrush,
+                    alpha = alpha,
+                    style = Stroke(width = 3.dp.toPx())
+                )
+            }
+        }
 }
 
 /**
@@ -76,11 +146,15 @@ fun Modifier.focusedScale(
     var hasFocus by remember { mutableStateOf(false) }
     val scaleValue by animateFloatAsState(
         targetValue = if (hasFocus) 1f else scale,
+        animationSpec = BVMotion.focusSpring(),
         label = "focused scale"
     )
 
     onFocusChanged { hasFocus = it.hasFocus }
-        .scale(scaleValue)
+        .graphicsLayer {
+            scaleX = scaleValue
+            scaleY = scaleValue
+        }
 }
 
 fun Modifier.bitmapMask(

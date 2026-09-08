@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component.videocard
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +41,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.focusHighlight
 
 @Composable
 fun SeasonCard(
@@ -56,7 +56,10 @@ fun SeasonCard(
     var coverRealWidth by remember { mutableStateOf(0.dp) }
 
     Surface(
-        modifier = modifier.onFocusChanged { if (it.hasFocus) onFocus() },
+        modifier = modifier
+            // 描边 / 光晕 / 放大统一走 focusHighlight，和视频卡片保持同一套焦点语言
+            .focusHighlight(shape = MaterialTheme.shapes.large, focusedScale = 1.05f)
+            .onFocusChanged { if (it.hasFocus) onFocus() },
         onClick = onClick,
         onLongClick = onLongClick,
         colors = ClickableSurfaceDefaults.colors(
@@ -65,12 +68,8 @@ fun SeasonCard(
             pressedContainerColor = MaterialTheme.colorScheme.surface
         ),
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(
-                border = BorderStroke(width = 3.dp, color = Color.White),
-                shape = MaterialTheme.shapes.large
-            )
-        )
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = ClickableSurfaceDefaults.border(focusedBorder = Border.None)
     ) {
         Column {
             val coverModifier = if (coverHeight != null) {

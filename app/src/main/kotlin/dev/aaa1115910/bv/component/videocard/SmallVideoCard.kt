@@ -1,6 +1,6 @@
 package dev.aaa1115910.bv.component.videocard
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +31,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,14 +45,23 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.ui.theme.BVColor
+import dev.aaa1115910.bv.ui.theme.BVMotion
+import dev.aaa1115910.bv.ui.theme.CoverScrimBrush
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
+import dev.aaa1115910.bv.util.focusHighlight
 import dev.aaa1115910.bv.util.resizedImageUrl
 
+/** 封面没加载出来时的占位底色，避免整片黑洞 */
+private val CoverPlaceholderBrush = Brush.linearGradient(
+    colors = listOf(BVColor.SurfaceVariant, BVColor.Surface)
+)
 
 @Composable
 fun SmallVideoCard(
@@ -64,6 +74,7 @@ fun SmallVideoCard(
     onGoToUpPage: (() -> Unit)? = null,
 ) {
     var showActions by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
     // 解决长按卡片松开会导致一次按钮触发的问题
     var releaseLongPress by remember { mutableStateOf(false) }
     val firstButtonRequester = remember { FocusRequester() }
@@ -89,66 +100,29 @@ fun SmallVideoCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1.6f)
+                // 描边 / 光晕 / 放大统一交给 focusHighlight，动画只在绘制阶段生效
+                .focusHighlight(shape = MaterialTheme.shapes.large)
                 .onFocusChanged { focusState ->
+                    hasFocus = focusState.hasFocus
                     if (!focusState.hasFocus) showActions = false
                 },
             shape = CardDefaults.shape(MaterialTheme.shapes.large),
-            border = CardDefaults.border(
-                focusedBorder = Border(
-                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
-                    shape = MaterialTheme.shapes.large
-                )
-            )
+            scale = CardDefaults.scale(focusedScale = 1f),
+            border = CardDefaults.border(focusedBorder = Border.None)
         ) {
             if (showActions) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    onAddWatchLater?.let {
-                        IconButton(
-                            onClick = {
-                                if (!releaseLongPress) {
-                                    releaseLongPress = true
-                                    return@IconButton
-                                }
-                                it()
-                            },
-                            modifier = Modifier.focusRequester(firstButtonRequester)
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (delToView)
-                                        R.drawable.remove_from_list
-                                    else
-                                        R.drawable.add_to_list
-                                ),
-                                contentDescription = "Add to/Remove from watch later"
-                            )
+                CardActions(
+                    delToView = delToView,
+                    firstButtonRequester = firstButtonRequester,
+                    onAddWatchLater = onAddWatchLater?.let { action ->
+                        {
+                            // 长按松手的那一下不算点击
+                            if (releaseLongPress) action() else releaseLongPress = true
                         }
-                    }
-
-                    onGoToDetailPage?.let {
-                        IconButton(onClick = { it() }) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.info_24px),
-                                contentDescription = "Video Detail"
-                            )
-                        }
-                    }
-
-                    onGoToUpPage?.let {
-                        IconButton(onClick = { it() }) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.contact_page_24px),
-                                contentDescription = "Up Page"
-                            )
-                        }
-                    }
-                }
+                    },
+                    onGoToDetailPage = onGoToDetailPage,
+                    onGoToUpPage = onGoToUpPage
+                )
             } else {
                 CardCover(
                     cover = data.cover,
@@ -163,8 +137,72 @@ fun SmallVideoCard(
             modifier = Modifier.fillMaxWidth(),
             title = data.title,
             upName = data.upName,
-            pubTime = data.pubTime
+            pubTime = data.pubTime,
+            highlighted = hasFocus
         )
+    }
+}
+
+@Composable
+private fun CardActions(
+    modifier: Modifier = Modifier,
+    delToView: Boolean,
+    firstButtonRequester: FocusRequester,
+    onAddWatchLater: (() -> Unit)?,
+    onGoToDetailPage: (() -> Unit)?,
+    onGoToUpPage: (() -> Unit)?
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(BVColor.SurfaceVariant, BVColor.Surface)
+                )
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            onAddWatchLater?.let {
+                IconButton(
+                    onClick = it,
+                    modifier = Modifier.focusRequester(firstButtonRequester)
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            id = if (delToView)
+                                R.drawable.remove_from_list
+                            else
+                                R.drawable.add_to_list
+                        ),
+                        contentDescription = "Add to/Remove from watch later"
+                    )
+                }
+            }
+
+            onGoToDetailPage?.let {
+                IconButton(onClick = { it() }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.info_24px),
+                        contentDescription = "Video Detail"
+                    )
+                }
+            }
+
+            onGoToUpPage?.let {
+                IconButton(onClick = { it() }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.contact_page_24px),
+                        contentDescription = "Up Page"
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -177,37 +215,37 @@ fun CardCover(
     danmaku: String,
     time: String
 ) {
+    val context = LocalContext.current
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(MaterialTheme.shapes.large),
+            .clip(MaterialTheme.shapes.large)
+            .background(CoverPlaceholderBrush),
         contentAlignment = Alignment.BottomCenter
     ) {
         AsyncImage(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(MaterialTheme.shapes.large),
-            model = cover.resizedImageUrl(ImageSize.SmallVideoCardCover),
+            modifier = Modifier.fillMaxSize(),
+            model = remember(cover) {
+                ImageRequest.Builder(context)
+                    .data(cover.resizedImageUrl(ImageSize.SmallVideoCardCover))
+                    // 淡入，翻页时封面不会「啪」地跳出来
+                    .crossfade(240)
+                    .build()
+            },
             contentDescription = null,
             contentScale = ContentScale.Crop
         )
 
-        // 渐变遮罩
+        // 底部渐变遮罩，保证白字在任何封面上都读得清
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.5f)
-                        )
-                    )
-                )
+                .height(64.dp)
+                .background(CoverScrimBrush)
         )
 
-        // 播放数、弹幕数、时间
+        // 播放数、弹幕数、时长
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -218,13 +256,13 @@ fun CardCover(
                 Icon(
                     painter = painterResource(id = R.drawable.ic_play_count),
                     contentDescription = null,
-                    tint = Color.White
+                    tint = Color.White.copy(alpha = 0.9f)
                 )
                 Spacer(Modifier.width(2.dp))
                 Text(
                     text = play,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White
+                    color = Color.White.copy(alpha = 0.9f)
                 )
                 Spacer(Modifier.width(8.dp))
             }
@@ -232,22 +270,32 @@ fun CardCover(
                 Icon(
                     painter = painterResource(id = R.drawable.ic_danmaku_count),
                     contentDescription = null,
-                    tint = Color.White
+                    tint = Color.White.copy(alpha = 0.9f)
                 )
                 Spacer(Modifier.width(2.dp))
                 Text(
                     text = danmaku,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White
+                    color = Color.White.copy(alpha = 0.9f)
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text(
-                text = time,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White,
-                maxLines = 1
-            )
+            if (time.isNotBlank()) {
+                // 时长做成胶囊，跟左侧的统计信息拉开层级
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = time,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
@@ -257,35 +305,50 @@ fun CardInfo(
     modifier: Modifier = Modifier,
     title: String,
     upName: String,
-    pubTime: String?
+    pubTime: String?,
+    highlighted: Boolean = false
 ) {
+    val titleColor by animateColorAsState(
+        targetValue = if (highlighted) BVColor.TextPrimary else BVColor.TextPrimary.copy(alpha = 0.82f),
+        animationSpec = BVMotion.colorTween(),
+        label = "card title color"
+    )
+    val subColor by animateColorAsState(
+        targetValue = if (highlighted) BVColor.Pink else BVColor.TextTertiary,
+        animationSpec = BVMotion.colorTween(),
+        label = "card sub color"
+    )
+
     Column(
         modifier = modifier
-            .padding(vertical = 6.dp)
+            .padding(top = 10.dp, bottom = 6.dp)
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
+            color = titleColor,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            UpIcon()
+            UpIcon(color = subColor)
             Text(
                 modifier = Modifier.weight(1f),
                 text = upName,
                 style = MaterialTheme.typography.labelMedium,
+                color = subColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = pubTime ?: "",
                 style = MaterialTheme.typography.labelMedium,
+                color = BVColor.TextTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

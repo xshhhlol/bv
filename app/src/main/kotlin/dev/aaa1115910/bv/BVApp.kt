@@ -62,7 +62,22 @@ class BVApp : Application(), KoinComponent {
         initRepository()
         initProxy()
 
-        BiliHttpApi.init(buvid3 = Prefs.buvid3)
+        // 回调要在 init 之前设置：init 会立刻起协程去申请指纹 cookie，
+        // 晚设置的话第一次申请到的结果就落不了盘
+        BiliHttpApi.onWebCookiesUpdated = { buvid3, buvid4, bNut, ticket, ticketExpires ->
+            Prefs.buvid3 = buvid3
+            Prefs.buvid4 = buvid4
+            Prefs.bNut = bNut
+            Prefs.biliTicket = ticket
+            Prefs.biliTicketExpires = ticketExpires
+        }
+        BiliHttpApi.init(
+            buvid3 = Prefs.buvid3,
+            buvid4 = Prefs.buvid4,
+            bNut = Prefs.bNut,
+            biliTicket = Prefs.biliTicket,
+            biliTicketExpires = Prefs.biliTicketExpires
+        )
     }
 
     private fun initCoreLibraries() {
