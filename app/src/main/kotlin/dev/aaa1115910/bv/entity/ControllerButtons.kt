@@ -20,6 +20,7 @@ enum class ControllerButton(
     val availableInSeason: Boolean = true
 ) {
     PlayPause("playPause", "播放/暂停", R.drawable.play_pause_24px),
+    Engagement("engagement", "点赞 / 投币 / 收藏", R.drawable.video_actions_24px),
     Danmaku("danmaku", "弹幕开关", R.drawable.danmaku_on_24px),
     VideoList("videoList", "播放列表", R.drawable.video_list_24px),
     Settings("settings", "打开设置", R.drawable.settings_24px),
@@ -102,7 +103,9 @@ object ControllerButtonsCodec {
         val result = configs.toMutableList()
         missing.forEach { button ->
             val defaultIndex = defaultOrder.indexOf(button)
-            val insertIndex = result
+            val insertIndex = if (button == ControllerButton.Engagement && result.any { it.button == ControllerButton.Danmaku }) {
+                result.indexOfFirst { it.button == ControllerButton.Danmaku }
+            } else result
                 .indexOfLast { defaultOrder.indexOf(it.button) < defaultIndex }
                 .let { if (it == -1) 0 else it + 1 }
             result.add(insertIndex, ControllerButtonConfig(button))

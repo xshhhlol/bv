@@ -1,9 +1,23 @@
 package dev.aaa1115910.bv.component.controllers
 
 import android.util.Log
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.tv.material3.Border
+import androidx.tv.material3.LocalContentColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -96,7 +110,9 @@ fun ControllerVideoInfo(
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit
+    onGoToUpPage: () -> Unit,
+    onShowEngagement: () -> Unit = {},
+    isPlaying: Boolean = false
 ) {
     Box(
         modifier = modifier.fillMaxSize()
@@ -147,7 +163,9 @@ fun ControllerVideoInfo(
                 onShowRelatedVideos = onShowRelatedVideos,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
-                onGoToUpPage = onGoToUpPage
+                onGoToUpPage = onGoToUpPage,
+                onShowEngagement = onShowEngagement,
+                isPlaying = isPlaying
             )
         }
     }
@@ -301,7 +319,9 @@ fun ControllerVideoInfoBottom(
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit
+    onGoToUpPage: () -> Unit,
+    onShowEngagement: () -> Unit = {},
+    isPlaying: Boolean = false
 ) {
     val seekFocusRequester = remember { FocusRequester() }
     val buttonsFocusRequester = remember { FocusRequester() }
@@ -352,14 +372,8 @@ fun ControllerVideoInfoBottom(
         Row(
             modifier = Modifier
                 .padding(horizontal = 24.dp)
-                .border(
-                    width = 2.dp,
-                    // 和卡片、按钮统一成同一条渐变焦点环
-                    brush = if (isSeekFocused) FocusRingBrush else SolidColor(Color.Transparent),
-                    shape = RoundedCornerShape(10.dp)
-                )
-                .focusable()
                 .focusRequester(seekFocusRequester)
+                .onFocusChanged { isSeekFocused = it.hasFocus }
                 .onKeyEvent {
                     when (it.key) {
                         Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
@@ -392,18 +406,15 @@ fun ControllerVideoInfoBottom(
                     }
                     return@onKeyEvent false
                 }
-                .onFocusChanged {
-                    isSeekFocused = it.isFocused
-                },
+                .focusable(),
         ) {
             VideoProgressSeek(
-                modifier = Modifier
-                    .focusable()
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 duration = seekerState.totalDuration,
                 position = if (isSeeking) goTime else seekerState.currentTime,
                 bufferedPercentage = seekerState.bufferedPercentage,
-                isPersistentSeek = false
+                isPersistentSeek = false,
+                focused = isSeekFocused
             )
         }
 
@@ -412,21 +423,10 @@ fun ControllerVideoInfoBottom(
         val visibleButtons = buttonConfigs.filter { config ->
             !config.hidden && (config.button.availableInSeason || !fromSeason)
         }
-        // 有开关态的按钮图标要跟着当前状态走，不能用枚举里的静态图标
-        val iconOf: (ControllerButton) -> Int = { button ->
-            when (button) {
-                ControllerButton.Danmaku ->
-                    if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px
-
-                ControllerButton.PlayMode ->
-                    if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px
-
-                else -> button.icon
-            }
-        }
         val actionOf: (ControllerButton) -> () -> Unit = { button ->
             when (button) {
                 ControllerButton.PlayPause -> onPlayPause
+                ControllerButton.Engagement -> onShowEngagement
                 ControllerButton.Danmaku -> onDanmakuSwitchChange
                 ControllerButton.Settings -> onShowSettings
                 ControllerButton.VideoList -> onShowVideoList
@@ -454,29 +454,100 @@ fun ControllerVideoInfoBottom(
                     }
                     return@onKeyEvent false
                 }
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start)
         ) {
             visibleButtons.forEachIndexed { index, config ->
                 val button = config.button
-                Surface(
-                    modifier = if (index == defaultFocusIndex) {
-                        Modifier.focusRequester(buttonsFocusRequester)
-                    } else {
-                        Modifier
-                    },
-                    onClick = actionOf(button),
-                    shape = ClickableSurfaceDefaults.shape(
-                        shape = MaterialTheme.shapes.small,
-                    ),
-                ) {
-                    Icon(
-                        painter = painterResource(id = iconOf(button)),
-                        contentDescription = button.title,
-                        modifier = Modifier.padding(5.dp)
-                    )
+                val icon = when (button) {
+                    ControllerButton.PlayPause -> if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
+                    ControllerButton.Engagement -> Icons.Rounded.ThumbUp
+                    ControllerButton.Danmaku -> if (danmakuEnabled) Icons.Rounded.Subtitles else Icons.Rounded.SubtitlesOff
+                    ControllerButton.VideoList -> Icons.Rounded.PlaylistPlay
+                    ControllerButton.Settings -> Icons.Rounded.Tune
+                    ControllerButton.VideoDetail -> Icons.Rounded.Article
+                    ControllerButton.UpSpace -> Icons.Rounded.AccountCircle
+                    ControllerButton.Related -> Icons.Rounded.VideoLibrary
+                    ControllerButton.PlayMode -> if (isLooping) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat
                 }
+                val label = when (button) {
+                    ControllerButton.PlayPause -> if (isPlaying) "暂停" else "播放"
+                    ControllerButton.Engagement -> "点赞·投币·收藏"
+                    ControllerButton.Danmaku -> if (danmakuEnabled) "隐藏弹幕" else "显示弹幕"
+                    ControllerButton.VideoList -> "播放列表"
+                    ControllerButton.Settings -> "播放设置"
+                    ControllerButton.VideoDetail -> "视频详情"
+                    ControllerButton.UpSpace -> "UP 主页"
+                    ControllerButton.Related -> "相关推荐"
+                    ControllerButton.PlayMode -> if (isLooping) "循环：开" else "循环：关"
+                }
+                val active = (button == ControllerButton.Danmaku && danmakuEnabled) ||
+                    (button == ControllerButton.PlayMode && isLooping)
+                PlayerControlButton(
+                    modifier = if (index == defaultFocusIndex) Modifier.focusRequester(buttonsFocusRequester) else Modifier,
+                    icon = icon,
+                    label = label,
+                    wide = button == ControllerButton.Engagement,
+                    active = active,
+                    onClick = actionOf(button)
+                )
             }
+        }
+    }
+}
+
+/** 仅获焦时显示用途提示，预留文字高度以免移动焦点时按钮跳动。 */
+@Composable
+private fun PlayerControlButton(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    label: String,
+    wide: Boolean,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    val hintAlpha by animateFloatAsState(
+        targetValue = if (focused) 1f else 0f,
+        animationSpec = tween(120),
+        label = "control hint"
+    )
+    Surface(
+        modifier = modifier
+            .width(if (wide) 112.dp else 80.dp)
+            .onFocusChanged { focused = it.hasFocus },
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (active) BVColor.Cyan.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.07f),
+            contentColor = if (active) BVColor.Cyan else Color.White.copy(alpha = 0.9f),
+            focusedContainerColor = BVColor.Pink.copy(alpha = 0.22f),
+            focusedContentColor = Color.White,
+            pressedContainerColor = BVColor.Pink.copy(alpha = 0.38f),
+            pressedContentColor = Color.White
+        ),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(BorderStroke(1.dp, if (active) BVColor.Cyan.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.10f))),
+            focusedBorder = Border(BorderStroke(2.dp, BVColor.PinkBright))
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.98f)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(28.dp), tint = LocalContentColor.current)
+            Text(
+                modifier = Modifier.graphicsLayer { alpha = hintAlpha }.clearAndSetSemantics { },
+                text = label,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = LocalContentColor.current,
+                maxLines = 1
+            )
         }
     }
 }

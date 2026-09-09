@@ -104,6 +104,8 @@ fun VideoPlayerController(
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger {}
 
+    var engagementAid by remember { mutableStateOf<Long?>(null) }
+    androidx.compose.runtime.LaunchedEffect(uiState.aid) { engagementAid = null }
     var showListController by remember { mutableStateOf(false) }
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
@@ -438,9 +440,10 @@ fun VideoPlayerController(
             }
 
             Key.Menu -> {
-                // 菜单键呼出播放控制条，播放器设置留给控制条上的「打开设置」按钮和长按确认键
-                showMenuController = false
-                showInfoSeekController = !showInfoSeekController
+                showInfoSeekController = false
+                showListController = false
+                showRelatedVideosController = false
+                showMenuController = true
                 return true
             }
 
@@ -632,7 +635,13 @@ fun VideoPlayerController(
                 )
             },
             onToggleLoop = onToggleLoop,
-            onGoToUpPage = onGoToUpPage
+            onGoToUpPage = onGoToUpPage,
+            isPlaying = isPlaying,
+            onShowEngagement = {
+                if (isPlaying) onPause()
+                showInfoSeekController = false
+                engagementAid = currentUiState.aid
+            }
         )
 
         VideoListController(
@@ -641,6 +650,12 @@ fun VideoPlayerController(
             videoList = uiState.availableVideoList,
             onPlayNewVideo = onPlayNewVideo
         )
+
+        engagementAid?.takeIf { it == uiState.aid }?.let { targetAid ->
+            androidx.compose.runtime.key(targetAid) {
+                VideoEngagementDialog(aid = targetAid, onDismiss = { engagementAid = null })
+            }
+        }
 
         MenuController(
             show = showMenuController,

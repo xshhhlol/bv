@@ -1,5 +1,7 @@
 package dev.aaa1115910.bv.component.controllers
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,8 +24,10 @@ fun VideoProgressSeek(
     duration: Long,
     position: Long,
     bufferedPercentage: Int,
-    isPersistentSeek: Boolean
+    isPersistentSeek: Boolean,
+    focused: Boolean = false
 ) {
+    val thumbScale by animateFloatAsState(if (focused) 1.65f else 1f, label = "seek thumb focus")
     val trackWidthDp = if (isPersistentSeek) 3.dp else 8.dp
     val playedFraction = if (duration > 0) (position / duration.toFloat()).coerceIn(0f, 1f) else 0f
     val bufferedFraction = (bufferedPercentage / 100f).coerceIn(0f, 1f)
@@ -31,11 +35,11 @@ fun VideoProgressSeek(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(if (isPersistentSeek) trackWidthDp else 16.dp)
+            .height(if (isPersistentSeek) trackWidthDp else 28.dp)
     ) {
         val trackWidthPx = trackWidthDp.toPx()
-        val startX = trackWidthPx / 2
-        val endX = size.width - trackWidthPx / 2
+        val startX = if (isPersistentSeek) trackWidthPx / 2 else 14.dp.toPx()
+        val endX = size.width - startX
         val usableWidth = (endX - startX).coerceAtLeast(0f)
 
         // 未播放部分
@@ -75,12 +79,12 @@ fun VideoProgressSeek(
         if (!isPersistentSeek) {
             drawCircle(
                 color = BVColor.Cyan.copy(alpha = 0.25f),
-                radius = trackWidthPx * 1.5f,
+                radius = trackWidthPx * 1.5f * thumbScale,
                 center = Offset(playedEnd, center.y)
             )
             drawCircle(
                 color = Color.White,
-                radius = trackWidthPx * 0.75f,
+                radius = trackWidthPx * 0.75f * thumbScale,
                 center = Offset(playedEnd, center.y)
             )
         }

@@ -91,8 +91,9 @@ fun AboutSetting(
                     Image(
                         modifier = Modifier
                             .size(64.dp)
-                            .clip(RoundedCornerShape(16.dp)),
-                        painter = painterResource(R.mipmap.ic_launcher),
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(BVColor.Ink),
+                        painter = painterResource(R.drawable.bv_launcher_art),
                         contentDescription = null
                     )
                     Spacer(modifier = Modifier.width(20.dp))
