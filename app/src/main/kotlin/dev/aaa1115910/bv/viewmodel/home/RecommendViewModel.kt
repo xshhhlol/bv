@@ -15,6 +15,7 @@ import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
@@ -40,7 +41,7 @@ class RecommendViewModel(
                 // first load data
                 while (recommendVideoList.size < 24 && loadCount < maxLoadMoreCount) {
                     val emptyFun: () -> Unit = {}
-                    loadData(beforeAppendData = if (loadCount == 0) beforeAppendData else emptyFun)
+                    if (!loadData(beforeAppendData = if (loadCount == 0) beforeAppendData else emptyFun)) break
                     if (loadCount != 0) logger.fInfo { "Load more recommend videos because items too less" }
                     loadCount++
                 }
@@ -53,10 +54,10 @@ class RecommendViewModel(
 
     private suspend fun loadData(
         beforeAppendData: () -> Unit
-    ) {
+    ): Boolean {
         loading = true
         logger.fInfo { "Load more recommend videos" }
-        runCatching {
+        val result = runCatching {
             val recommendData = recommendVideoRepository.getRecommendVideos(
                 page = nextPage,
                 preferApiType = Prefs.apiType
@@ -65,12 +66,15 @@ class RecommendViewModel(
             nextPage = recommendData.nextPage
             recommendVideoList.addAllWithMainContext(recommendData.items)
         }.onFailure {
+            loading = false
+            if (it is CancellationException) throw it
             logger.fError { "Load recommend video list failed: ${it.stackTraceToString()}" }
             withContext(Dispatchers.Main) {
                 "加载推荐视频失败: ${it.localizedMessage}".toast(BVApp.context)
             }
         }
         loading = false
+        return result.isSuccess
     }
 
     fun clearData() {

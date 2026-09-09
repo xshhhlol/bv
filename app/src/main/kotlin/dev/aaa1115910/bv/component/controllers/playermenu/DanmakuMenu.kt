@@ -67,7 +67,7 @@ fun DanmakuMenuList(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val menuItemsModifier = Modifier
-            .width(216.dp)
+            .width(166.dp)
             .padding(horizontal = 8.dp)
         AnimatedVisibility(visible = focusState.focusState != MenuFocusState.MenuNav) {
             when (selectedDanmakuMenuItem) {
@@ -215,7 +215,7 @@ fun DanmakuMenuList(
                     false
                 }
                 .focusRestorer(restorerFocusRequester),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->

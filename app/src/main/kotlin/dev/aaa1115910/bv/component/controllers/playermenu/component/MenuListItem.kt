@@ -50,7 +50,7 @@ fun MenuListItem(
     onClick: () -> Unit
 ) {
     val itemWidth by animateDpAsState(
-        targetValue = if (expanded) 200.dp else 66.dp,
+        targetValue = if (expanded) 150.dp else 52.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessLow
@@ -83,9 +83,9 @@ fun MenuListItem(
                         Text(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(32.dp),
+                                .height(26.dp),
                             text = text,
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             textAlign = textAlign,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -104,10 +104,10 @@ fun MenuListItem(
                         exit = fadeOut()
                     ) {
                         if (icon == null) {
-                            Box(modifier = Modifier.size(32.dp))
+                            Box(modifier = Modifier.size(26.dp))
                         } else {
                             Icon(
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(26.dp),
                                 imageVector = icon,
                                 contentDescription = null
                             )

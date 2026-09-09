@@ -15,6 +15,7 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import java.util.Date
 
 // 1. 核心 UI 状态 (低频更新)
 data class PlayerUiState(
@@ -26,6 +27,12 @@ data class PlayerUiState(
     val authorMid: Long = 0,
     val authorName: String = "",
     val title: String = "",
+    /** 发布时间，拿不到视频详情时为 null */
+    val publishDate: Date? = null,
+    /** 播放量，-1 表示还不知道 */
+    val viewCount: Int = -1,
+    /** 当前在看人数，接口给的是 "1000+" 这类展示字符串，拿不到时为 null */
+    val onlineCount: String? = null,
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
     val lastPlayed: Int = 0,

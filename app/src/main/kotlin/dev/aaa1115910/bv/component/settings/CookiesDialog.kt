@@ -3,13 +3,13 @@ package dev.aaa1115910.bv.component.settings
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,10 +24,15 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.AuthData
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.util.toast
 import io.github.g0dkar.qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
@@ -69,34 +74,44 @@ fun CookiesDialog(
             onDismissRequest = { onHideDialog() },
             title = { Text(text = "Cookies") },
             text = {
-                Row {
-                    Column(
-                        modifier = Modifier.weight(1f)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "扫码可以把当前登录状态导到另一台设备，也可以直接粘贴一份 JSON 覆盖",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BVColor.TextTertiary
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         OutlinedTextField(
+                            // 原来这里 weight(1f) 和 size(140.dp) 撞在一起，
+                            // 二维码那一侧的宽度实际是被 weight 定的，size 只剩高度有意义
+                            modifier = Modifier.weight(1f),
                             value = json,
                             onValueChange = { json = it },
+                            textStyle = MaterialTheme.typography.bodySmall,
                             maxLines = 5
                         )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .size(140.dp)
-                            .clip(MaterialTheme.shapes.large)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Image(
-                            modifier = Modifier.size(120.dp),
-                            bitmap = qrImage,
-                            contentDescription = null
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(140.dp)
+                                .clip(MaterialTheme.shapes.large)
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                modifier = Modifier.size(120.dp),
+                                bitmap = qrImage,
+                                contentDescription = null
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                Button(onClick = {
                     runCatching {
                         val authData = AuthData.fromJson(json)
                         authData.saveToPrefs()
@@ -107,12 +122,12 @@ fun CookiesDialog(
                         onHideDialog()
                     }
                 }) {
-                    Text(text = "Confirm")
+                    Text(text = stringResource(id = R.string.common_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { onHideDialog() }) {
-                    Text(text = "Dismiss")
+                OutlinedButton(onClick = { onHideDialog() }) {
+                    Text(text = stringResource(id = R.string.common_cancel))
                 }
             }
         )

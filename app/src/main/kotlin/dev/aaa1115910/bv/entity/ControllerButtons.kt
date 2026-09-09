@@ -21,6 +21,7 @@ enum class ControllerButton(
 ) {
     PlayPause("playPause", "播放/暂停", R.drawable.play_pause_24px),
     Danmaku("danmaku", "弹幕开关", R.drawable.danmaku_on_24px),
+    VideoList("videoList", "播放列表", R.drawable.video_list_24px),
     Settings("settings", "打开设置", R.drawable.settings_24px),
     VideoDetail("videoDetail", "视频信息", R.drawable.info_24px, availableInSeason = false),
     UpSpace("upSpace", "up主页", R.drawable.contact_page_24px, availableInSeason = false),

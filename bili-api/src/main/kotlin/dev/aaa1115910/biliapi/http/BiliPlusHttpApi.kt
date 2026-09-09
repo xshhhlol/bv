@@ -3,9 +3,11 @@ package dev.aaa1115910.biliapi.http
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.biliplus.View
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
+import dev.aaa1115910.biliapi.http.util.checkApiRiskResponse
 import io.ktor.client.HttpClient
+import dev.aaa1115910.biliapi.http.util.validateApiRiskResponses
+import dev.aaa1115910.biliapi.http.util.retryReadOnlyNetworkFailures
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -13,7 +15,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.URLProtocol
-import io.ktor.serialization.kotlinx.json.json
+import dev.aaa1115910.biliapi.http.util.riskAwareJson
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
@@ -37,16 +39,15 @@ object BiliPlusHttpApi {
     private fun createClient() {
         client = HttpClient(OkHttp) {
             BiliUserAgent()
+            validateApiRiskResponses()
             install(ContentNegotiation) {
-                json(json)
+                riskAwareJson(json)
             }
             install(ContentEncoding) {
                 deflate(1.0F)
                 gzip(0.9F)
             }
-            install(HttpRequestRetry) {
-                retryOnException(maxRetries = 2)
-            }
+            retryReadOnlyNetworkFailures()
             defaultRequest {
                 url {
                     host = endPoint
@@ -65,7 +66,7 @@ object BiliPlusHttpApi {
             parameter("id", aid)
             parameter("update", update)
             accessKey?.let { parameter("access_key", it) }
-        }.bodyAsText()
+        }.bodyAsText().also { checkApiRiskResponse(it) }
         val resultJsonObject = json.parseToJsonElement(result).jsonObject
         return if (resultJsonObject.size == 3) {
             BiliResponse(

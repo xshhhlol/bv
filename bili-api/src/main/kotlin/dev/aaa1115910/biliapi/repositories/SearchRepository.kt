@@ -129,7 +129,8 @@ class SearchRepository(
                         tid = tid,
                         order = order.httpOrderParam,
                         duration = duration.httpDurationParam,
-                        buvid3 = authRepository.buvid3!!,
+                        buvid3 = authRepository.buvid3,
+                        sessData = authRepository.sessionData,
                     )
                 } else {
                     BiliHttpApi.searchType(
@@ -139,7 +140,8 @@ class SearchRepository(
                         tid = tid,
                         order = order.httpOrderParam,
                         duration = duration.httpDurationParam,
-                        buvid3 = authRepository.buvid3!!,
+                        buvid3 = authRepository.buvid3,
+                        sessData = authRepository.sessionData,
                     )
                 }.getResponseData()
                 SearchTypeResult.fromSearchTypeResult(response)
@@ -248,7 +250,9 @@ data class SearchTypeResult(
 ) {
     companion object {
         fun fromSearchTypeResult(result: dev.aaa1115910.biliapi.http.entity.search.SearchResultData): SearchTypeResult {
-            return when (result.searchTypeResults.first()) {
+            // 用 firstOrNull：某个分类搜不到东西时这个列表就是空的（关键词只有视频、没有番剧就会这样），
+            // 拿 first() 会直接抛 "List is empty."，被上层当成搜索失败弹个提示出来
+            return when (result.searchTypeResults.firstOrNull()) {
                 is dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult -> {
                     SearchTypeResult(
                         videos = result.searchTypeResults.map { Video.fromSearchVideoResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult) },
@@ -401,10 +405,12 @@ data class SearchTypeResult(
     }
 }
 
-private fun convertStringTimeToSeconds(time: String): Int {
+private fun convertStringTimeToSeconds(time: String): Int = runCatching {
+    // 时长偶尔会是空的或者 NaN:NaN，别让一条脏数据把整页搜索结果都带崩
+    if (time.isBlank() || time.startsWith("NaN")) return 0
     val parts = time.split(":")
     val hours = if (parts.size == 3) parts[0].toInt() else 0
     val minutes = parts[parts.size - 2].toInt()
     val seconds = parts[parts.size - 1].toInt()
-    return (hours * 3600) + (minutes * 60) + seconds
-}
+    (hours * 3600) + (minutes * 60) + seconds
+}.getOrDefault(0)

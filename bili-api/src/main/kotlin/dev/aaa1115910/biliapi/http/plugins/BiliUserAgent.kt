@@ -5,7 +5,8 @@ import dev.aaa1115910.biliapi.http.util.BiliWebConf
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.api.ClientPlugin
 import io.ktor.client.plugins.api.createClientPlugin
-import io.ktor.client.request.header
+import dev.aaa1115910.biliapi.http.util.isAppRequest
+import io.ktor.http.encodedPath
 import io.ktor.client.request.host
 import io.ktor.http.HttpHeaders
 import io.ktor.util.logging.KtorSimpleLogger
@@ -48,13 +49,15 @@ val BiliUserAgent: ClientPlugin<BiliUserAgentConfig> =
         val webUserAgent = pluginConfig.webUserAgent
         onRequest { request, _ ->
             val userAgent =
-                if (request.host == "app.bilibili.com" || request.host == "passport.bilibili.com") {
+                if (request.isAppRequest || (request.host == "passport.bilibili.com" &&
+                        !request.url.encodedPath.startsWith("/x/passport-login/web/") &&
+                        request.url.encodedPath != "/x/passport-login/captcha")) {
                     appUserAgent
                 } else {
                     webUserAgent
                 }
             LOGGER.trace("Adding User-Agent header: agent \"${userAgent}\" for ${request.url}")
-            request.header(HttpHeaders.UserAgent, userAgent)
+            request.headers[HttpHeaders.UserAgent] = userAgent
         }
     }
 

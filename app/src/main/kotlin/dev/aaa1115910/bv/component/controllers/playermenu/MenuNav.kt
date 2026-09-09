@@ -36,8 +36,8 @@ fun MenuNavList(
         modifier = modifier
             .focusRestorer(restorerFocusRequester)
             .focusRequester(focusRequester),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(16.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(12.dp)
     ) {
         itemsIndexed(VideoPlayerMenuNavItem.entries) { index, item ->
             MenuListItem(

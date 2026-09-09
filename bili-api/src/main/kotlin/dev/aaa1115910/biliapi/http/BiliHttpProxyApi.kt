@@ -7,9 +7,10 @@ import dev.aaa1115910.biliapi.http.entity.video.PlayUrlV2Data
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
 import dev.aaa1115910.biliapi.http.util.encApiSign
 import io.ktor.client.HttpClient
+import dev.aaa1115910.biliapi.http.util.validateApiRiskResponses
+import dev.aaa1115910.biliapi.http.util.retryReadOnlyNetworkFailures
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -17,7 +18,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.http.URLProtocol
-import io.ktor.serialization.kotlinx.json.json
+import dev.aaa1115910.biliapi.http.util.riskAwareJson
 import kotlinx.serialization.json.Json
 
 object BiliHttpProxyApi {
@@ -32,16 +33,15 @@ object BiliHttpProxyApi {
     fun createClient(proxyServer: String) {
         client = HttpClient(OkHttp) {
             BiliUserAgent()
+            validateApiRiskResponses()
             install(ContentNegotiation) {
-                json(json)
+                riskAwareJson(json)
             }
             install(ContentEncoding) {
                 deflate(1.0F)
                 gzip(0.9F)
             }
-            install(HttpRequestRetry) {
-                retryOnException(maxRetries = 2)
-            }
+            retryReadOnlyNetworkFailures()
             defaultRequest {
                 url {
                     val proxyServerSpilt = proxyServer.split(":")
@@ -153,7 +153,8 @@ object BiliHttpProxyApi {
         tid: Int? = null,
         order: String? = null,
         duration: Int? = null,
-        buvid3: String? = null
+        buvid3: String? = null,
+        sessData: String? = null
     ): BiliResponse<SearchResultData> = client?.get("/x/web-interface/wbi/search/type") {
         parameter("keyword", keyword)
         parameter("search_type", type)
@@ -161,7 +162,11 @@ object BiliHttpProxyApi {
         tid?.let { parameter("tids", it) }
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }
-        header("Cookie", "buvid3=$buvid3;")
+        val cookies = listOfNotNull(
+            buvid3?.takeIf { it.isNotBlank() }?.let { "buvid3=$it" },
+            sessData?.takeIf { it.isNotBlank() }?.let { "SESSDATA=$it" }
+        )
+        if (cookies.isNotEmpty()) header("Cookie", cookies.joinToString("; "))
         header("referer", "https://search.bilibili.com/")
     }?.body() ?: throw IllegalStateException("no proxy server")
 }

@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component
 
 import android.content.Context
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +31,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.LocalContentColor
@@ -57,24 +58,39 @@ fun TopNav(
 ) {
     val focusRequester = remember { FocusRequester() }
 
-    var selectedNav by remember { mutableStateOf(items.first()) }
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    // 存起来，从别的板块切回来时导航条还停在原来那一栏，不会被重置回第一个
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     var hasFocus by remember { mutableStateOf(false) }
-    val verticalPadding by animateDpAsState(
-        targetValue = if (isLargePadding) 14.dp else 6.dp,
-        animationSpec = BVMotion.dpTween(),
-        label = "top nav vertical padding"
+
+    /**
+     * 焦点移到内容区时导航条「收一收」。
+     *
+     * 只动 graphicsLayer，不动 padding：padding 会改变 topBar 的实际高度，Scaffold 的内容区
+     * 跟着重新测量，等于整页视频网格在这 260ms 里每帧重排一次——移动焦点、切页面时那一下的卡顿
+     * 主要就是这么来的。位移和缩放放在绘制阶段做，布局全程不动。
+     */
+    val recede by animateFloatAsState(
+        targetValue = if (isLargePadding) 0f else 1f,
+        animationSpec = BVMotion.floatTween(),
+        label = "top nav recede"
     )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .onFocusChanged { hasFocus = it.hasFocus }
-            .padding(12.dp, verticalPadding),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.Center
     ) {
         TabRow(
             modifier = Modifier
+                .graphicsLayer {
+                    translationY = -6.dp.toPx() * recede
+                    val shrink = 1f - 0.04f * recede
+                    scaleX = shrink
+                    scaleY = shrink
+                    alpha = 1f - 0.12f * recede
+                }
                 .focusRestorer(focusRequester),
             selectedTabIndex = selectedTabIndex,
             // TabRow 自带的底色是一整条胶囊，会盖住下面的单个 tab 指示器，这里让它透明
@@ -90,7 +106,6 @@ fun TopNav(
                     selected = index == selectedTabIndex,
                     active = hasFocus,
                     onFocus = {
-                        selectedNav = tab
                         selectedTabIndex = index
                         onSelectedChanged(tab)
                     },

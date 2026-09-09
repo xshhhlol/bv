@@ -65,10 +65,9 @@ object LiveDataWebSocket {
         onEvent: (event: LiveEvent) -> Unit
     ) {
         val danmuInfo =
-            BiliLiveHttpApi.getLiveDanmuInfo(roomId).data ?: throw CancellationException()
+            BiliLiveHttpApi.getLiveDanmuInfo(roomId).getResponseData()
         val realRoomId =
-            BiliLiveHttpApi.getLiveRoomPlayInfo(roomId).data?.roomId
-                ?: throw CancellationException()
+            BiliLiveHttpApi.getLiveRoomPlayInfo(roomId).getResponseData().roomId
         val hosts = danmuInfo.hostList.last()
 
         val data = buildJsonObject {

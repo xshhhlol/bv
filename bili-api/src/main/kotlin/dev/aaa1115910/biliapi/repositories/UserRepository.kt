@@ -9,14 +9,13 @@ import dev.aaa1115910.biliapi.entity.user.FollowedUser
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoData
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoPage
+import dev.aaa1115910.biliapi.entity.user.UserCard
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.entity.user.FollowAction
 import dev.aaa1115910.biliapi.http.entity.user.FollowActionSource
 import dev.aaa1115910.biliapi.http.entity.user.RelationType
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 import kotlin.math.ceil
@@ -166,36 +165,52 @@ class UserRepository(
         }.getResponseData().toast
     }
 
+    /**
+     * 获取 UP 主 [mid] 的名片信息（粉丝数、简介等）
+     *
+     * 走 web 端的 card 接口，不需要登录也能拿到，登录了则顺带带上关注状态
+     */
+    suspend fun getUserCard(
+        mid: Long
+    ): UserCard = withContext(Dispatchers.IO) {
+        val data = BiliHttpApi.getUserCardInfo(
+            uid = mid,
+            sessData = authRepository.sessionData.orEmpty()
+        ).getResponseData()
+        UserCard.fromUserCardData(data)
+    }
+
     suspend fun getSpaceVideos(
         mid: Long,
         order: SpaceVideoOrder = SpaceVideoOrder.PubDate,
         page: SpaceVideoPage = SpaceVideoPage(),
         preferApiType: ApiType = ApiType.Web
     ): SpaceVideoData {
-        return when (preferApiType) {
-            ApiType.Web -> {
-                val webSpaceVideoData = BiliHttpApi.getWebUserSpaceVideos(
+        return loadSpaceVideoPage(
+            page = page,
+            preferApiType = preferApiType,
+            loadWeb = {
+                val data = BiliHttpApi.getWebUserSpaceVideos(
                     mid = mid,
                     order = order.value,
                     pageNumber = page.nextWebPageNumber,
                     pageSize = page.nextWebPageSize,
-                    sessData = authRepository.sessionData ?: "",
+                    sessData = authRepository.sessionData.orEmpty(),
                     dedeUserID = authRepository.mid
                 ).getResponseData()
-                SpaceVideoData.fromWebSpaceVideoData(webSpaceVideoData)
-            }
-
-            ApiType.App -> {
-                val appSpaceVideoData = BiliHttpApi.getAppUserSpaceVideos(
+                SpaceVideoData.fromWebSpaceVideoData(data)
+            },
+            loadApp = {
+                val data = BiliHttpApi.getAppUserSpaceVideos(
                     mid = mid,
                     lastAvid = page.lastAvid,
                     order = order.value,
-                    ts = System.currentTimeMillis(),
-                    accessKey = authRepository.accessToken ?: ""
+                    ts = System.currentTimeMillis() / 1000,
+                    accessKey = authRepository.accessToken.orEmpty()
                 ).getResponseData()
-                SpaceVideoData.fromAppSpaceVideoData(appSpaceVideoData)
+                SpaceVideoData.fromAppSpaceVideoData(data)
             }
-        }
+        )
     }
 
     suspend fun getDynamicVideos(
@@ -250,15 +265,12 @@ class UserRepository(
                 val pageCount = ceil((userCount.toFloat() / 50)).toInt()
                 result.addAll(firstResponse.list.map { FollowedUser.fromHttpFollowedUser(it) })
                 withContext(Dispatchers.IO) {
-                    (2..pageCount).map { pageNumber ->
-                        async {
-                            BiliHttpApi.getUserFollow(
-                                mid = mid,
-                                pageNumber = pageNumber,
-                                sessData = authRepository.sessionData!!
-                            ).getResponseData()
-                        }
-                    }.awaitAll().forEach { userFollowData ->
+                    (2..pageCount).forEach { pageNumber ->
+                        val userFollowData = BiliHttpApi.getUserFollow(
+                            mid = mid,
+                            pageNumber = pageNumber,
+                            sessData = authRepository.sessionData!!
+                        ).getResponseData()
                         result.addAll(userFollowData.list.map { FollowedUser.fromHttpFollowedUser(it) })
                     }
                 }
@@ -275,15 +287,12 @@ class UserRepository(
                 val pageCount = ceil((userCount.toFloat() / 50)).toInt()
                 result.addAll(firstResponse.list.map { FollowedUser.fromHttpFollowedUser(it) })
                 withContext(Dispatchers.IO) {
-                    (2..pageCount).map { pageNumber ->
-                        async {
-                            BiliHttpApi.getUserFollow(
-                                mid = mid,
-                                pageNumber = pageNumber,
-                                accessKey = authRepository.accessToken!!
-                            ).getResponseData()
-                        }
-                    }.awaitAll().forEach { userFollowData ->
+                    (2..pageCount).forEach { pageNumber ->
+                        val userFollowData = BiliHttpApi.getUserFollow(
+                            mid = mid,
+                            pageNumber = pageNumber,
+                            accessKey = authRepository.accessToken!!
+                        ).getResponseData()
                         result.addAll(userFollowData.list.map { FollowedUser.fromHttpFollowedUser(it) })
                     }
                 }

@@ -72,7 +72,7 @@ fun PictureMenuList(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val menuItemsModifier = Modifier
-            .width(216.dp)
+            .width(166.dp)
             .padding(horizontal = 8.dp)
         AnimatedVisibility(visible = focusState.focusState != MenuFocusState.MenuNav) {
             when (selectedPictureMenuItem) {
@@ -146,7 +146,7 @@ fun PictureMenuList(
                     false
                 }
                 .focusRestorer(restorerFocusRequester),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerPictureMenuItem.entries.toMutableList()) { index, item ->

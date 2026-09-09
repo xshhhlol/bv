@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
-    <color name="ic_banner_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#07090F</color>
+    <color name="ic_banner_background">#07090F</color>
     <!-- 应用底色，对应 BVColor.Ink -->
     <color name="bv_background">#07090F</color>
 </resources>

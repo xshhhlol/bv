@@ -23,8 +23,11 @@ dependencies {
     implementation(libs.logging)
     implementation(libs.slf4j.simple)
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.ktor.client.mock)
 }
 
 tasks.test {
+    inputs.property("liveApiAudit", providers.environmentVariable("BILI_API_LIVE_AUDIT").orElse("false"))
+    inputs.property("liveApiAuditFilter", providers.environmentVariable("BILI_API_AUDIT_FILTER").orElse(""))
     useJUnitPlatform()
 }

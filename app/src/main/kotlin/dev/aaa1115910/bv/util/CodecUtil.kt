@@ -13,6 +13,26 @@ object CodecUtil {
             .codecInfos.toList()
             .map { CodecInfoData.fromCodecInfo(it) }
     }
+
+    /**
+     * 设备上有没有能扛下这个分辨率的硬件解码器。
+     *
+     * 查不出来的时候返回 true——宁可放行也不要因为判断不了就把某个编码拦掉。
+     */
+    fun hasHardwareDecoder(mimeType: String, width: Int, height: Int): Boolean = runCatching {
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+            .filter { !it.isEncoder }
+            .filter { codecInfo ->
+                codecInfo.supportedTypes.any { it.equals(mimeType, ignoreCase = true) }
+            }
+            .filter { CodecMode.fromMediaCodecInfo(it) == CodecMode.Hardware }
+            .any { codecInfo ->
+                val videoCapabilities = codecInfo
+                    .getCapabilitiesForType(mimeType)
+                    .videoCapabilities ?: return@any false
+                videoCapabilities.isSizeSupported(width, height)
+            }
+    }.getOrDefault(true)
 }
 
 data class CodecInfoData(

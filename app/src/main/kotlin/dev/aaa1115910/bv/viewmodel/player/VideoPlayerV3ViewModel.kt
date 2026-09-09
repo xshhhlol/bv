@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.state.SubtitleState
+import dev.aaa1115910.bv.util.CodecUtil
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -77,6 +78,20 @@ import org.koin.android.annotation.KoinViewModel
 import java.net.URI
 import java.util.Calendar
 import kotlin.coroutines.cancellation.CancellationException
+
+/** 播放出错后最多自动换地址重试几次 */
+private const val MAX_PLAY_RETRY = 3
+private const val RETRY_DELAY_MS = 800L
+private const val RETRY_RESET_DELAY_MS = 10_000L
+
+/**
+ * 更新播放状态，但不覆盖已有的错误状态。
+ *
+ * ExoPlayer 报错时的回调顺序是 onPlayerError -> onPlaybackStateChanged -> onIsPlayingChanged，
+ * 最后那一下会把刚设好的 Error 冲成 Paused，错误提示就再也显示不出来了。
+ */
+private fun PlayerUiState.copyKeepingError(newState: PlayerState): PlayerUiState =
+    if (playerState is PlayerState.Error) this else copy(playerState = newState)
 
 @KoinViewModel
 
@@ -110,6 +125,15 @@ class VideoPlayerV3ViewModel(
     private var clockUpdateJob: Job? = null
     private var heartbeatJob: Job? = null
     private var loadVideoJob: Job? = null
+    private var loadDetailJob: Job? = null
+
+    /** 播放出错自动重试的次数与待恢复位置 */
+    private var playRetryCount = 0
+    private var pendingResumePosition = 0L
+    private var playRetryJob: Job? = null
+    private var playRetryResetJob: Job? = null
+
+    private var onlineCountJob: Job? = null
 
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
@@ -117,19 +141,30 @@ class VideoPlayerV3ViewModel(
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
-            logger.info { "onError: $error" }
+            logger.warn { "onError: $error" }
+            danmakuPlayer?.pause()
+
+            // 播放地址是带时效签名的，跳转时重新发起的分段请求经常会被 CDN 拒掉，
+            // 先自动换一份新地址接着放，实在救不回来才把错误抛给界面
+            if (playRetryCount < MAX_PLAY_RETRY) {
+                retryPlaybackAfterError(error)
+                return
+            }
+
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Error(
                         error.message ?: "Unknown error"
-                    )
+                    ),
+                    isBuffering = false
                 )
             }
         }
 
         override fun onReady() {
             logger.info { "onReady" }
-            _uiState.update { it.copy(playerState = PlayerState.Ready) }
+            // 能 ready 说明已经缓冲上了，之前的错误也算恢复了
+            _uiState.update { it.copy(playerState = PlayerState.Ready, isBuffering = false) }
 
             updatePlaySpeed(forceUpdate = true)
             startSeekerUpdater()
@@ -139,23 +174,55 @@ class VideoPlayerV3ViewModel(
             logger.info { "onPlay" }
             danmakuPlayer?.start()
             _uiState.update { it.copy(playerState = PlayerState.Playing, isBuffering = false) }
+            schedulePlayRetryReset()
 
-            if (_uiState.value.lastPlayed > 0) {
-                seekToLastPlayed()
-                _uiState.update { it.copy(lastPlayed = 0) }
+            val resumePosition = pendingResumePosition
+            pendingResumePosition = 0
+            when {
+                // 出错重载后跳回中断的位置，优先于历史进度
+                resumePosition > 0 -> {
+                    _uiState.update { it.copy(lastPlayed = 0) }
+                    seekToTime(resumePosition)
+                }
+
+                _uiState.value.lastPlayed > 0 -> {
+                    seekToLastPlayed()
+                    _uiState.update { it.copy(lastPlayed = 0) }
+                }
             }
         }
 
         override fun onPause() {
             logger.info { "onPause" }
             danmakuPlayer?.pause()
-            _uiState.update { it.copy(playerState = PlayerState.Paused) }
+            cancelPlayRetryReset()
+            _uiState.update { it.copyKeepingError(PlayerState.Paused) }
+        }
+
+        override fun onSeekProcessed(positionMs: Long) {
+            // 画面按关键帧对齐后可能和请求的时间差好几秒，用真实落点把弹幕重新对一次
+            _seekerState.update { it.copy(currentTime = positionMs) }
+            danmakuPlayer?.seekTo(positionMs)
+            // akdanmaku 跳转后会自己开始播，视频还没在放就先按住
+            if (videoPlayer?.isPlaying != true) danmakuPlayer?.pause()
         }
 
         override fun onBuffering() {
             logger.info { "onBuffering" }
             danmakuPlayer?.pause()
+            cancelPlayRetryReset()
             _uiState.update { it.copy(isBuffering = true) }
+        }
+
+        override fun onIdle() {
+            logger.info { "onIdle" }
+            danmakuPlayer?.pause()
+            cancelPlayRetryReset()
+            // 正在自动重试就继续转圈，别闪一下
+            if (playRetryJob?.isActive == true) return
+            // 出错或 stop 之后会停在这个状态，缓冲标记必须清掉，
+            // 否则界面会一直转圈（这也是「一直缓冲中」的直接原因）
+            _uiState.update { it.copy(isBuffering = false) }
         }
 
         override fun onEnd() {
@@ -163,7 +230,7 @@ class VideoPlayerV3ViewModel(
             danmakuPlayer?.pause()
             stopSeekerUpdater()
 
-            _uiState.update { it.copy(playerState = PlayerState.Ended) }
+            _uiState.update { it.copy(playerState = PlayerState.Ended, isBuffering = false) }
             viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.PlayEnded)
             }
@@ -174,6 +241,66 @@ class VideoPlayerV3ViewModel(
 
         override fun onSeekForward(seekForwardIncrementMs: Long) {
         }
+    }
+
+    /**
+     * 播放出错后自动换一份播放地址重试
+     *
+     * B 站的播放地址带时效签名，长时间播放或反复跳转后，分段请求可能被 CDN 拒绝。
+     * 重新走一遍取地址流程通常就能恢复，并跳回中断的位置继续放。
+     */
+    private fun retryPlaybackAfterError(error: Exception) {
+        val position = videoPlayer?.currentPosition?.coerceAtLeast(0L) ?: 0L
+        playRetryCount++
+        // 重载之后播放器位置会回到 0，这时候再失败一次别把上回记下的断点冲掉，
+        // 否则连着失败几次就变成从头开始放了
+        if (position > 0) pendingResumePosition = position
+        playRetryResetJob?.cancel()
+
+        logger.warn {
+            "Playback error, retry $playRetryCount/$MAX_PLAY_RETRY " +
+                    "from ${position.formatHourMinSec()}: ${error.message}"
+        }
+
+        // 重试期间界面继续显示缓冲，不要闪一下错误再闪回来
+        _uiState.update { it.copy(isBuffering = true) }
+
+        playRetryJob?.cancel()
+        playRetryJob = viewModelScope.launch {
+            delay(RETRY_DELAY_MS * playRetryCount)
+            loadVideoWithResources()
+        }
+    }
+
+    /**
+     * 连续放够一段时间才把重试次数清零
+     *
+     * 直接在 onPlay 里清零的话，「起播就失败」会变成无限重试，永远走不到报错。
+     * 计时必须是「连续播放」，所以一旦转圈或者停下来就要 [cancelPlayRetryReset]，
+     * 不然「放一下 → 长时间缓冲」这种循环会在缓冲期间把次数清掉，一样走不到报错。
+     */
+    private fun schedulePlayRetryReset() {
+        if (playRetryCount == 0) return
+        playRetryResetJob?.cancel()
+        playRetryResetJob = viewModelScope.launch {
+            delay(RETRY_RESET_DELAY_MS)
+            playRetryCount = 0
+        }
+    }
+
+    /** 播放中断，重新计「连续播放」的时间 */
+    private fun cancelPlayRetryReset() {
+        playRetryResetJob?.cancel()
+        playRetryResetJob = null
+    }
+
+    private fun cancelPlayRetry() {
+        playRetryJob?.cancel()
+        playRetryJob = null
+        playRetryResetJob?.cancel()
+        playRetryResetJob = null
+        playRetryCount = 0
+        pendingResumePosition = 0
     }
 
     fun init(
@@ -245,9 +372,17 @@ class VideoPlayerV3ViewModel(
                 if (newDetail == null) return@onEach
 
                 _uiState.update { currentState ->
-                    currentState.copy(relatedVideos = newDetail.relatedVideos)
+                    if (newDetail.aid != currentState.aid) return@update currentState
+                    currentState.copy(
+                        relatedVideos = newDetail.relatedVideos,
+                        publishDate = newDetail.publishDate,
+                        viewCount = newDetail.stat.view,
+                        // 当前稿件的详情是作者信息的来源，不能保留启动时的旧作者
+                        authorName = newDetail.author.name,
+                        authorMid = newDetail.author.mid
+                    )
                 }
-                logger.fInfo { "Sync related videos from repo" }
+                logger.fInfo { "Sync video detail from repo" }
             }
             .launchIn(viewModelScope)
     }
@@ -279,6 +414,9 @@ class VideoPlayerV3ViewModel(
     fun detachPlayer() {
         syncProgress(scope = detachedWorkScope, isDetaching = true)
 
+        cancelPlayRetry()
+        onlineCountJob?.cancel()
+        loadDetailJob?.cancel()
         videoPlayer?.release()
         videoPlayer = null
     }
@@ -368,7 +506,12 @@ class VideoPlayerV3ViewModel(
 
             if (mediaUrls != null) {
                 // 执行播放逻辑
-                player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
+                player.playUrl(
+                    videoUrl = mediaUrls.videoUrl,
+                    audioUrl = mediaUrls.audioUrl,
+                    videoBackupUrls = mediaUrls.videoBackupUrls,
+                    audioBackupUrls = mediaUrls.audioBackupUrls
+                )
                 player.prepare()
                 if (currentPosition > 0) {
                     player.seekTo(currentPosition)
@@ -416,6 +559,11 @@ class VideoPlayerV3ViewModel(
         }
         if (new.maskEnabled != old.maskEnabled) {
             Prefs.defaultDanmakuMask = new.maskEnabled
+            // 之前没拉到蒙版数据的话（比如加载时网络抖了一下），
+            // 这里再试一次，不然开关打开也是没反应
+            if (new.maskEnabled && _uiState.value.danmakuMask == null) {
+                viewModelScope.launch(Dispatchers.IO) { updateDanmakuMask() }
+            }
         }
     }
 
@@ -536,6 +684,28 @@ class VideoPlayerV3ViewModel(
     }
 
     /**
+     * 周期性刷新「当前在看人数」
+     *
+     * 只在切分P/切视频时重启。接口很轻，30 秒一次足够让控制条弹出来时数字是新的。
+     */
+    private fun startOnlineCountUpdater() {
+        onlineCountJob?.cancel()
+        onlineCountJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val state = _uiState.value
+                if (state.aid != 0L && state.cid != 0L) {
+                    val count = videoPlayRepository.getOnlineCount(state.aid, state.cid)
+                    // 请求期间可能已经切走了，别把上一个视频的数字写进来
+                    if (_uiState.value.cid == state.cid) {
+                        _uiState.update { it.copy(onlineCount = count) }
+                    }
+                }
+                delay(30_000)
+            }
+        }
+    }
+
+    /**
      * 开始周期性更新播放进度
      */
     fun startSeekerUpdater() {
@@ -566,12 +736,6 @@ class VideoPlayerV3ViewModel(
         val shouldUpdateVideoDetail = state.aid != newVideo.aid
         val shouldUpdateVideoList = !state.availableVideoList.any { it.aid == newVideo.aid }
 
-        // 切换视频时更新detail
-        if (shouldUpdateVideoDetail) {
-            viewModelScope.launch(Dispatchers.IO) {
-                videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.apiType)
-            }
-        }
 
         // 新视频不在当前视频列表时更新列表
         if (shouldUpdateVideoList) {
@@ -580,6 +744,9 @@ class VideoPlayerV3ViewModel(
 
         // 更新播放历史并上传
         syncProgress(viewModelScope)
+
+        // 换视频了，上一个视频的重试预算和待恢复位置都作废
+        cancelPlayRetry()
 
         // 重置弹幕
         releaseDanmakuPlayer()
@@ -590,16 +757,39 @@ class VideoPlayerV3ViewModel(
             it.copy(
                 aid = newVideo.aid,
                 cid = newVideo.cid,
-                epid = newVideo.epid,
+                epid = newVideo.epid?.takeIf { it > 0 },
+                fromSeason = newVideo.epid?.let { it > 0 } == true,
+                lastPlayed = 0,
                 seasonId = newVideo.seasonId ?: 0,
                 title = newVideo.title,
                 isBuffering = true,
+                // 上一个视频的错误状态是粘的（copyKeepingError），不清掉的话会一直盖在新视频的加载界面上
+                playerState = PlayerState.Ready,
+                onlineCount = null,
+                // 换的是别的稿件才清空详情，同一稿件换分P时这些信息不变
+                publishDate = if (shouldUpdateVideoDetail) null else it.publishDate,
+                viewCount = if (shouldUpdateVideoDetail) -1 else it.viewCount,
+                // 作者信息同理，留着上一个稿件的会让信息栏和「up主页」按钮指向错的 UP
+                authorName = if (shouldUpdateVideoDetail) "" else it.authorName,
+                authorMid = if (shouldUpdateVideoDetail) 0 else it.authorMid,
                 videoShot = null,
                 danmakuMask = null,
                 subtitleList = emptyList(),
                 subtitleData = emptyList(),
                 relatedVideos = emptyList(),
             )
+        }
+
+        // 先发布新稿件身份，再加载详情，避免快速响应被旧 aid 过滤掉。
+        loadDetailJob?.cancel()
+        loadDetailJob = viewModelScope.launch {
+            try {
+                videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.apiType)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to load current video detail" }
+            }
         }
 
         // 加载新播放url
@@ -630,6 +820,7 @@ class VideoPlayerV3ViewModel(
                     }
                 }
                 launch { loadDanmaku(cid) }
+                withContext(Dispatchers.Main) { startOnlineCountUpdater() }
                 launch { updateDanmakuMask() }
                 launch { updateVideoShot() }
                 launch { updateVideoPages() }
@@ -817,11 +1008,16 @@ class VideoPlayerV3ViewModel(
             ?.takeIf { it.isNotEmpty() }
             ?: return null
 
-        val targetVideoCodec = if (codecList.contains(Prefs.defaultVideoCodec)) {
+        val preferredCodec = if (codecList.contains(Prefs.defaultVideoCodec)) {
             Prefs.defaultVideoCodec
         } else {
             codecList.minByOrNull { it.ordinal } ?: return null
         }
+        val targetVideoCodec = pickHardwareDecodableCodec(
+            codecList = codecList,
+            preferred = preferredCodec,
+            qualityId = state.mediaProfileState.qualityId
+        )
 
         _uiState.update {
             it.copy(
@@ -831,6 +1027,37 @@ class VideoPlayerV3ViewModel(
         }
         logger.fInfo { "Select codec: $targetVideoCodec" }
         return targetVideoCodec
+    }
+
+    /**
+     * 挑一个这台设备真能硬解的编码。
+     *
+     * 4K 及以上如果用了没有硬件解码器的编码（最常见的是 AV1），就会退到软解，
+     * 表现出来就是画面一顿一顿的、而且越到高码率段越明显。这种情况下宁可换成能硬解的编码，
+     * 画质差别远小于卡顿带来的影响。用户自己在设置里强制软解时不插手。
+     */
+    private fun pickHardwareDecodableCodec(
+        codecList: List<VideoCodec>,
+        preferred: VideoCodec,
+        qualityId: Int
+    ): VideoCodec {
+        if (Prefs.enableSoftwareVideoDecoder) return preferred
+        val videoItems = playData?.dashVideos?.filter { it.quality == qualityId }.orEmpty()
+        val width = videoItems.maxOfOrNull { it.width } ?: 0
+        val height = videoItems.maxOfOrNull { it.height } ?: 0
+        // 1080p 及以下基本都能扛住，没必要为了硬解去换编码
+        if (width <= 0 || height < 1440) return preferred
+        if (CodecUtil.hasHardwareDecoder(preferred.mimeType, width, height)) return preferred
+
+        val fallback = codecList.firstOrNull {
+            it != preferred && CodecUtil.hasHardwareDecoder(it.mimeType, width, height)
+        }
+        if (fallback == null) {
+            logger.fWarn { "No hardware decoder for ${width}x$height, keep codec $preferred" }
+            return preferred
+        }
+        logger.fInfo { "No hardware decoder for $preferred at ${width}x$height, fallback to $fallback" }
+        return fallback
     }
 
     private fun resolveMediaUrls(
@@ -865,8 +1092,7 @@ class VideoPlayerV3ViewModel(
             return null
         }
 
-        var videoUrl = actualVideoItem.baseUrl
-        val videoUrls = mutableListOf<String?>()
+        val videoUrls = mutableListOf<String>()
         videoUrls.add(actualVideoItem.baseUrl)
         videoUrls.addAll(actualVideoItem.backUrl)
 
@@ -875,7 +1101,6 @@ class VideoPlayerV3ViewModel(
             ?: currentPlayData.flac.takeIf { it?.codecId == targetAudio.code }
             ?: currentPlayData.dashAudios.minByOrNull { it.codecId }
 
-        var audioUrl: String? = audioItem?.baseUrl
         val audioUrls = mutableListOf<String>()
         audioItem?.baseUrl?.let { audioUrls.add(it) }
         audioUrls.addAll(audioItem?.backUrl ?: emptyList())
@@ -884,14 +1109,23 @@ class VideoPlayerV3ViewModel(
         logger.fInfo { "all audio hosts: ${audioUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
 
         //replace cdn
+        val orderedVideoUrls: List<String>
+        val orderedAudioUrls: List<String>
         if (Prefs.enableProxy && state.proxyArea != ProxyArea.MainLand) {
-            videoUrl = videoUrl.replaceUrlDomainWithAliCdn()
-            audioUrl = audioUrl?.replaceUrlDomainWithAliCdn()
+            // 走代理拿到的地址只有换域名后的这一个能用，没有备选
+            orderedVideoUrls = listOf(actualVideoItem.baseUrl.replaceUrlDomainWithAliCdn())
+            orderedAudioUrls = listOfNotNull(audioItem?.baseUrl?.replaceUrlDomainWithAliCdn())
         } else {
-            // 如果未通过网络代理获得播放地址，才判断是否应该替换为官方 cdn
-            videoUrl = selectOfficialCdnUrl(videoUrls.filterNotNull())
-            audioUrl = if (audioUrls.isNotEmpty()) selectOfficialCdnUrl(audioUrls) else null
+            // 如果未通过网络代理获得播放地址，才判断是否应该优先使用官方 cdn
+            orderedVideoUrls = orderCdnUrls(videoUrls)
+            orderedAudioUrls = orderCdnUrls(audioUrls)
         }
+
+        val videoUrl = orderedVideoUrls.firstOrNull() ?: run {
+            logger.fWarn { "No available video url found" }
+            return null
+        }
+        val audioUrl = orderedAudioUrls.firstOrNull()
 
         logger.fInfo { "Audio encoding：${(Audio.fromCode(audioItem?.codecId ?: 0))}" }
         logger.info { "Video url: $videoUrl" }
@@ -904,7 +1138,12 @@ class VideoPlayerV3ViewModel(
             )
         }
 
-        return MediaUrls(videoUrl, audioUrl)
+        return MediaUrls(
+            videoUrl = videoUrl,
+            audioUrl = audioUrl,
+            videoBackupUrls = orderedVideoUrls.drop(1),
+            audioBackupUrls = orderedAudioUrls.drop(1)
+        )
     }
 
     private fun executePlayback(mediaUrls: MediaUrls) {
@@ -914,7 +1153,12 @@ class VideoPlayerV3ViewModel(
         }
 
         logger.info { "Execute playback -> Video: ${mediaUrls.videoUrl}, Audio: ${mediaUrls.audioUrl}" }
-        player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
+        player.playUrl(
+            videoUrl = mediaUrls.videoUrl,
+            audioUrl = mediaUrls.audioUrl,
+            videoBackupUrls = mediaUrls.videoBackupUrls,
+            audioBackupUrls = mediaUrls.audioBackupUrls
+        )
         player.prepare()
         player.start()
     }
@@ -994,7 +1238,9 @@ class VideoPlayerV3ViewModel(
 
         val currentTime = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
         val totalTime = (player.duration.coerceAtLeast(0) / 1000).toInt()
-        val reportTime = if (currentTime >= totalTime) -1 else currentTime
+        // 播放器没准备好时 duration 是 TIME_UNSET，coerce 完是 0，
+        // 这时候不能判成「已看完」，否则会把 -1 当进度写进历史，下次进来进度就没了
+        val reportTime = if (totalTime > 0 && currentTime >= totalTime) -1 else currentTime
 
         if (updateLocal) {
             videoInfoRepository.updateHistory(
@@ -1342,25 +1588,25 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(clock = Pair(hour, minute)) }
     }
 
-    private fun selectOfficialCdnUrl(urls: List<String>): String {
-        if (!Prefs.preferOfficialCdn) {
-            logger.fInfo { "doesn't need to filter official cdn url, select the first url" }
-            return urls.first()
-        }
-        val filteredUrls = urls
-            .filter { !it.contains(".mcdn.bilivideo.") }
-            .filter { !it.contains(".szbdyd.com") }
-            .filter {
-                !Regex("^(https?://)?(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(:\\d{1,5})?)(/[a-zA-Z0-9_./-]*)?(\\?.*)?$")
-                    .matches(it)
-            }
-        if (filteredUrls.isEmpty()) {
-            logger.fInfo { "doesn't find any official cdn url, select the first url" }
-            return urls.first()
-        } else {
-            logger.fInfo { "filtered official cdn urls: $filteredUrls" }
-            return filteredUrls.first()
-        }
+    /**
+     * 把一条流的所有地址按可靠程度排好序：官方 CDN 在前，PCDN / 回源 IP 之类的排在后面。
+     *
+     * 以前是从里面挑一个出来用，挑中的节点抽风就只能干等着缓冲；现在整条顺序都交给播放器，
+     * 第一个连不上会自动往后换（见 FallbackUrlDataSource）。
+     */
+    private fun orderCdnUrls(urls: List<String>): List<String> {
+        val distinctUrls = urls.distinct()
+        if (!Prefs.preferOfficialCdn || distinctUrls.size <= 1) return distinctUrls
+        val (official, others) = distinctUrls.partition { isOfficialCdnUrl(it) }
+        logger.fInfo { "official cdn: ${official.size}, other cdn: ${others.size}" }
+        return official + others
+    }
+
+    private fun isOfficialCdnUrl(url: String): Boolean {
+        if (url.contains(".mcdn.bilivideo.")) return false
+        if (url.contains(".szbdyd.com")) return false
+        return !Regex("^(https?://)?(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(:\\d{1,5})?)(/[a-zA-Z0-9_./-]*)?(\\?.*)?$")
+            .matches(url)
     }
 
     private fun String.replaceUrlDomainWithAliCdn(): String {
@@ -1397,7 +1643,10 @@ class VideoPlayerV3ViewModel(
 
     private data class MediaUrls(
         val videoUrl: String,
-        val audioUrl: String?
+        val audioUrl: String?,
+        /** 同一条流的备用 CDN 地址，主地址连不上时播放器会自动换过去 */
+        val videoBackupUrls: List<String> = emptyList(),
+        val audioBackupUrls: List<String> = emptyList()
     )
 }
 

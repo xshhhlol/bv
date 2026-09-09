@@ -2,7 +2,10 @@ package dev.aaa1115910.bv.component.settings
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
@@ -27,7 +33,8 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 fun SettingSwitchListItem(
     modifier: Modifier = Modifier,
     title: String,
-    supportText: String,
+    supportText: String? = null,
+    icon: ImageVector? = null,
     checked: Boolean,
     defaultHasFocus: Boolean = false,
     onCheckedChange: (Boolean) -> Unit
@@ -42,20 +49,27 @@ fun SettingSwitchListItem(
 
     ListItem(
         modifier = modifier
+            .fillMaxWidth()
             .padding(horizontal = 12.dp)
             .settingFocusBar { focusProgress }
             .onFocusChanged { hasFocus = it.hasFocus },
+        leadingContent = icon?.let { { SettingItemIcon(icon = it, focusProgress = focusProgress) } },
         headlineContent = {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium
             )
         },
-        supportingContent = {
-            Text(
-                text = supportText,
-                style = MaterialTheme.typography.bodySmall
-            )
+        supportingContent = supportText?.takeIf { it.isNotBlank() }?.let {
+            {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = lerp(BVColor.TextTertiary, BVColor.TextSecondary, focusProgress),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         },
         trailingContent = {
             Switch(
@@ -83,13 +97,14 @@ fun SettingSwitchListItem(
     )
 }
 
-@Preview
+@Preview(widthDp = 480)
 @Composable
-fun SettingSwitchListItemFocusedAndEnabledPreview() {
+private fun SettingSwitchListItemEnabledPreview() {
     BVTheme {
         SettingSwitchListItem(
-            title = "This is a title",
-            supportText = "This is a support text",
+            title = "启用软件解码",
+            supportText = "硬解花屏时可以打开，但会更吃 CPU",
+            icon = Icons.Rounded.Memory,
             checked = true,
             defaultHasFocus = true,
             onCheckedChange = {}
@@ -97,43 +112,15 @@ fun SettingSwitchListItemFocusedAndEnabledPreview() {
     }
 }
 
-@Preview
+@Preview(widthDp = 480)
 @Composable
-fun SettingSwitchListItemFocusedAndDisabledPreview() {
+private fun SettingSwitchListItemDisabledPreview() {
     BVTheme {
         SettingSwitchListItem(
-            title = "This is a title",
-            supportText = "This is a support text",
+            title = "启用软件解码",
+            supportText = "硬解花屏时可以打开，但会更吃 CPU",
+            icon = Icons.Rounded.Memory,
             checked = false,
-            defaultHasFocus = true,
-            onCheckedChange = {}
-        )
-    }
-}
-
-@Preview
-@Composable
-fun SettingSwitchListItemNotFocusedAndEnabledPreview() {
-    BVTheme {
-        SettingSwitchListItem(
-            title = "This is a title",
-            supportText = "This is a support text",
-            checked = true,
-            defaultHasFocus = false,
-            onCheckedChange = {}
-        )
-    }
-}
-
-@Preview
-@Composable
-fun SettingSwitchListItemNotFocusedAndDisabledPreview() {
-    BVTheme {
-        SettingSwitchListItem(
-            title = "This is a title",
-            supportText = "This is a support text",
-            checked = false,
-            defaultHasFocus = false,
             onCheckedChange = {}
         )
     }

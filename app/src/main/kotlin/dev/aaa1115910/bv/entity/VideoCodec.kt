@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.entity
 
 import android.content.Context
+import androidx.media3.common.MimeTypes
 import dev.aaa1115910.biliapi.entity.CodeType
 import dev.aaa1115910.bv.R
 
@@ -27,6 +28,14 @@ enum class VideoCodec(private val strRes: Int, val prefix: String, val codecId: 
             entries.find { it.codecId == codecId }!!
         }.getOrDefault(AVC)
     }
+
+    /** 对应的解码器 mime，用来查设备有没有硬件解码器 */
+    val mimeType: String
+        get() = when (this) {
+            AVC -> MimeTypes.VIDEO_H264
+            HEVC, DVH1, HVC1 -> MimeTypes.VIDEO_H265
+            AV1 -> MimeTypes.VIDEO_AV1
+        }
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 

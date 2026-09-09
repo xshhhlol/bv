@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.util
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.RectF
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -50,6 +51,8 @@ import dev.aaa1115910.biliapi.entity.danmaku.DanmakuWebMaskFrame
  *
  * @param shape 描边与光晕的形状，需要和被包裹内容的圆角保持一致
  * @param focusedScale 获焦时放大到的倍数
+ * @param glowElevation 光晕的投影高度。投影画在内容底下且不会被抠空，**内容半透明时会透出来变成灰块**，
+ *   这种情况传 0.dp 关掉光晕
  * @param ringBrush 描边渐变，默认是「粉 → 紫 → 青」
  */
 fun Modifier.focusHighlight(
@@ -208,21 +211,49 @@ fun Modifier.danmakuWebMask(
     aspectRatio: Float,
 ): Modifier = composed {
     // remember(frame) 保证 SVG 解析和 Bitmap 创建只在帧变化时执行一次
-    val bitmap = remember(frame) {
-        val svgObj = runCatching { SVG.getFromString(frame.svg) }.getOrNull()
-            ?: return@remember null
-
-        val svgWidth = svgObj.documentWidth.toInt().coerceAtLeast(1)
-        val svgHeight = svgObj.documentHeight.toInt().coerceAtLeast(1)
-
-        val bmp = Bitmap.createBitmap(svgWidth, svgHeight, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        svgObj.renderToCanvas(canvas)
-        bmp
-    } ?: return@composed this
+    val bitmap = remember(frame) { buildWebMaskBitmap(frame.svg) }
+        ?: return@composed this
 
     bitmapMask(bitmap, aspectRatio)
 }
+
+/** 蒙版 SVG 少数情况下会给出很大的尺寸，限一下上限，免得每帧都去申请一张大图 */
+private const val MAX_WEB_MASK_SIZE = 1024f
+
+/**
+ * 把一帧 webmask SVG 栅格化成蒙版位图
+ *
+ * B 站下发的 SVG 只写 `viewBox`、不写 `width`/`height`，
+ * 这种情况下 androidsvg 的 [SVG.getDocumentWidth] 返回的是 **-1**。
+ * 之前直接 `documentWidth.toInt().coerceAtLeast(1)` 拿去建 Bitmap，
+ * 结果是一张 1x1 的废图，再被拉伸到整个画面 —— 这就是「防遮挡没有用」的原因。
+ * 所以这里在拿不到文档尺寸时回退到 viewBox，并显式指定渲染视口。
+ */
+private fun buildWebMaskBitmap(svg: String): Bitmap? = runCatching {
+    val svgObj = SVG.getFromString(svg)
+    val viewBox: RectF? = svgObj.documentViewBox
+
+    val width = svgObj.documentWidth.takeIf { it > 0f }
+        ?: viewBox?.width()?.takeIf { it > 0f }
+        ?: return@runCatching null
+    val height = svgObj.documentHeight.takeIf { it > 0f }
+        ?: viewBox?.height()?.takeIf { it > 0f }
+        ?: return@runCatching null
+
+    val scale = minOf(1f, MAX_WEB_MASK_SIZE / maxOf(width, height))
+    val bitmapWidth = (width * scale).toInt().coerceAtLeast(1)
+    val bitmapHeight = (height * scale).toInt().coerceAtLeast(1)
+
+    val bmp = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    // 必须显式给视口：没有 width/height 的 SVG 走无参重载时，
+    // 会按 canvas 的裁剪区域自己算缩放，结果不受控
+    svgObj.renderToCanvas(
+        canvas,
+        RectF(0f, 0f, bitmapWidth.toFloat(), bitmapHeight.toFloat())
+    )
+    bmp
+}.getOrNull()
 
 fun Modifier.danmakuMobMask(
     frame: DanmakuMobMaskFrame,

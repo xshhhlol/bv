@@ -103,7 +103,7 @@ object Prefs {
     var enableProxy by pref(PrefKeys.prefEnableProxyKey, false)
     var proxyHttpServer by pref(PrefKeys.prefProxyHttpServerKey, "")
     var proxyGRPCServer by pref(PrefKeys.prefProxyGRPCServerKey, "")
-    var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, false)
+    var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, true)
 
     // =========================================================================
     // 播放器 - 视频
@@ -166,10 +166,10 @@ object Prefs {
                 .mapNotNull { runCatching { DanmakuType.entries[it.toInt()] }.getOrNull() }
         }
     )
-    var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.75f)
+    var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.2f)
     var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.7f)
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
-    var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 0.5f)
+    var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 0.25f)
     var defaultDanmakuMask by pref(PrefKeys.prefDefaultDanmakuMask, false)
 
     // =========================================================================
@@ -238,6 +238,11 @@ object Prefs {
         restore = { PersonalTopNavItem.entries.getOrElse(it) { PersonalTopNavItem.ToView } }
     )
     var showHotword by pref(PrefKeys.prefShowHotwordKey, true)
+
+    /** 视频列表每行显示几个卡片 */
+    var videoGridColumns by pref(PrefKeys.prefVideoGridColumnsKey, 5)
+    val videoGridColumnsFlow =
+        flowMap[PrefKeys.prefVideoGridColumnsKey]!!.asStateFlow() as StateFlow<Int>
 
     // =========================================================================
     // 隐私
@@ -391,6 +396,7 @@ private object PrefKeys {
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefFirstPersonalTopNavItemKey = intPreferencesKey("first_personal_top_nav")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
+    val prefVideoGridColumnsKey = intPreferencesKey("video_grid_columns")
 
     // 隐身模式
     val prefIncognitoModeKey = booleanPreferencesKey("im")

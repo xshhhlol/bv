@@ -202,6 +202,21 @@ class VideoPlayRepository(
         }
     }
 
+    /**
+     * 获取视频当前在线观看人数，拿不到或者接口不让展示时返回 null
+     *
+     * 返回的是接口给的展示字符串（如 "1000+"），不做二次格式化
+     */
+    suspend fun getOnlineCount(
+        aid: Long,
+        cid: Long
+    ): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val data = BiliHttpApi.getVideoOnlineCount(avid = aid, cid = cid).getResponseData()
+            data.total.takeIf { data.showSwitch?.total != false && it.isNotBlank() }
+        }.getOrNull()
+    }
+
     suspend fun getSubtitle(
         aid: Long,
         cid: Long,

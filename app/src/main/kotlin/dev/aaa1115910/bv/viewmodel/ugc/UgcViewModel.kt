@@ -1,5 +1,7 @@
 package dev.aaa1115910.bv.viewmodel.ugc
 
+import androidx.compose.foundation.lazy.grid.LazyGridState
+
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,6 +29,19 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
         _ugcScaffoldStateMap[item] = state
         launchWithIO { initUgcRegionData(item) }
     }
+
+    /**
+     * 取某个分区的状态，没有就建一个。
+     *
+     * 之前这一步是在 AnimatedContent 的内容里用 for 循环 + 条件调用 `rememberLazyGridState()` 做的——
+     * remember 的槽位数量会跟着条件变，是会把 Compose 的 slot table 搞乱的写法，而且每次组合都要跑一遍循环。
+     * 状态本来就该活得比页面久，直接放这儿建。
+     */
+    fun scaffoldStateOf(item: UgcTopNavItem): UgcScaffoldState =
+        _ugcScaffoldStateMap[item] ?: UgcScaffoldState(
+            lazyGridState = LazyGridState(),
+            ugcType = item.ugcTypeV2
+        ).also { addUgcScaffoldState(item, it) }
 
     fun reloadAll(item: UgcTopNavItem) {
         _ugcScaffoldStateMap[item]?.let { state ->

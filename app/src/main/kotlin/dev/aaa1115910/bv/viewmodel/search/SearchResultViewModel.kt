@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.util.toast
+import kotlinx.coroutines.CancellationException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.repositories.SearchFilterDuration
@@ -115,6 +118,16 @@ class SearchResultViewModel(
                         }
                     }
                 }
+            }.onFailure {
+                if (it is CancellationException) throw it
+                // 一次搜索会同时打四类结果，只有当前这一栏失败了才提示；
+                // 其它栏在后台失败还弹窗的话，明明视频有结果却蹦出个「搜索失败」，很莫名其妙
+                if (searchType == this@SearchResultViewModel.searchType) {
+                    withContext(Dispatchers.Main) {
+                        ("搜索失败：" + (it.message ?: "请稍后重试")).toast(BVApp.context)
+                    }
+                }
+                logger.fInfo { "Search [$searchType] failed: ${it.stackTraceToString()}" }
             }
             updating = false
         }

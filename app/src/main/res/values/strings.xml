@@ -224,13 +224,18 @@
     <string name="settings_crash_test_title">崩溃测试</string>
     <string name="settings_create_logs_text">查看最近的崩溃日志，也可以手动保存日志</string>
     <string name="settings_create_logs_title">查看日志</string>
-    <string name="settings_info_manufacturer">厂商: %1$s</string>
-    <string name="settings_info_memory">内存: 可用 %1$s 共 %2$s</string>
-    <string name="settings_info_model">型号: %1$s (%2$s)</string>
-    <string name="settings_info_screen">屏幕: %1$d x %2$d %3$fHz</string>
-    <string name="settings_info_soc">SOC: %1$s %2$s</string>
-    <string name="settings_info_storage">存储: 可用 %1$s 共 %2$s</string>
-    <string name="settings_info_system">系统: Android %1$s</string>
+    <string name="settings_info_manufacturer">厂商</string>
+    <string name="settings_info_memory">内存</string>
+    <string name="settings_info_model">型号</string>
+    <string name="settings_info_screen">屏幕</string>
+    <string name="settings_info_soc">SOC</string>
+    <string name="settings_info_storage">存储</string>
+    <string name="settings_info_system">系统</string>
+    <string name="settings_info_value_model">%1$s (%2$s)</string>
+    <string name="settings_info_value_screen">%1$d × %2$d @ %3$s Hz</string>
+    <string name="settings_info_value_soc">%1$s %2$s</string>
+    <string name="settings_info_value_system">Android %1$s</string>
+    <string name="settings_info_value_usage">可用 %1$s / 共 %2$s</string>
     <string name="settings_item_about">关于</string>
     <string name="settings_item_api">接口偏好</string>
     <string name="settings_item_audio">默认音频编码</string>
@@ -243,6 +248,14 @@
     <string name="settings_item_resolution">默认分辨率</string>
     <string name="settings_item_storage">存储管理</string>
     <string name="settings_item_ui">界面设置</string>
+    <string name="settings_item_about_desc">版本信息、更新与项目地址</string>
+    <string name="settings_item_audio_video_settings_desc">清晰度、编解码与播放器行为</string>
+    <string name="settings_item_info_desc">当前设备的硬件与系统信息</string>
+    <string name="settings_item_network_desc">代理服务器、线路偏好与连通性测试</string>
+    <string name="settings_item_other_desc">接口、日志与调试选项</string>
+    <string name="settings_item_player_type_desc">选择视频解码所使用的播放器内核</string>
+    <string name="settings_item_storage_desc">清理缓存文件与崩溃日志</string>
+    <string name="settings_item_ui_desc">启动位置、列表密度与界面元素</string>
     <string name="settings_media_ffmpeg_audio_renderer_title">启用音频软解</string>
     <string name="settings_media_ffmpeg_audio_renderer_text">尝试使用 FFmpeg 播放硬解不兼容的音频</string>
     <string name="settings_media_software_video_renderer_title">启用视频软解</string>
@@ -282,6 +295,7 @@
     <string name="settings_ui_homepage_title">更改主页置顶</string>
     <string name="settings_ui_personal_page_text">稍后再看/历史/收藏/追番，需重启应用生效</string>
     <string name="settings_ui_personal_page_title">更改个人页置顶</string>
+    <string name="settings_ui_video_grid_columns_title">每行视频数量</string>
     <string name="settings_version_check_update_button">爷要更新</string>
     <string name="settings_version_current_version">当前版本: %1$s</string>
     <string name="settings_version_latest_version">最新版本: %1$s</string>
@@ -723,7 +737,7 @@
     <string name="video_codec_hevc">H.265</string>
     <string name="video_codec_hvc1" tools:ignore="Typos">Dolby Vision (HVC1)</string>
     <string name="video_controller_menu_danmaku_area_tip">按 “上键” 或 “下键” 进行调节</string>
-    <string name="video_info_argue_tip_vertical_screen">温馨提示：该稿件包含竖屏视频内容</string>
+    <string name="video_info_tip_vertical_screen">含竖屏内容</string>
     <string name="video_info_argue_tip_upower_exclusive">温馨提示：该稿件为充电专属视频</string>
     <string name="video_info_description_title">视频简介</string>
     <string name="video_info_follow">关注</string>

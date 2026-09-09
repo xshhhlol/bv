@@ -194,7 +194,7 @@ fun VideoInfoScreen(
             partTitle = targetPartTitle,
             played = playedTime,
             fromSeason = isFromSeason,
-            author = videoDetailState.author
+            author = videoDetailState.author.takeIf { videoDetailState.aid == targetAid }
         )
     }
 
@@ -299,9 +299,6 @@ fun VideoInfoScreen(
                         if (uiState.videoDetailState?.isUpowerExclusive == true) {
                             ArgueTip(text = stringResource(R.string.video_info_argue_tip_upower_exclusive))
                         }
-                        if (containsVerticalScreenVideo) {
-                            ArgueTip(text = stringResource(R.string.video_info_argue_tip_vertical_screen))
-                        }
                         if (uiState.videoDetailState?.argueTip != null) {
                             ArgueTip(text = uiState.videoDetailState?.argueTip!!)
                         }
@@ -317,6 +314,7 @@ fun VideoInfoScreen(
                                 isFavorite = videoDetailState.isFavorite,
                                 isLiked = videoDetailState.isLiked,
                                 isCoined = videoDetailState.isCoined,
+                                containsVerticalScreenVideo = containsVerticalScreenVideo,
                                 userFavoriteFolders = uiState.favoriteFolders,
                                 favoriteFolderIds = uiState.videoFavoriteFolderIds.toList(),
                                 onClickCover = {
@@ -516,6 +514,7 @@ fun VideoInfoData(
     isFavorite: Boolean,
     isLiked: Boolean,
     isCoined: Boolean,
+    containsVerticalScreenVideo: Boolean = false,
     userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
     favoriteFolderIds: List<Long> = emptyList(),
     onClickCover: () -> Unit,
@@ -597,6 +596,14 @@ fun VideoInfoData(
                         Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
                         Text(text = "·")
                         Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
+                        // 竖屏内容只是个无关痛痒的提醒，跟着统计数据一起低调地放在这儿就行
+                        if (containsVerticalScreenVideo) {
+                            Text(text = "·")
+                            Text(
+                                text = stringResource(R.string.video_info_tip_vertical_screen),
+                                color = BVColor.TextTertiary
+                            )
+                        }
                     }
                 }
                 Row(

@@ -18,7 +18,7 @@ data class BiliResponse<T>(
         when (code) {
             0 -> {}
             -101 -> throw AuthFailureException(message)
-            -352 -> throw RiskControlException(message)
+            -352, -412, -509 -> throw RiskControlException(message, code = code)
             else -> throw IllegalStateException(message)
         }
         check(data != null || result != null) { "response data and result are both null" }
@@ -45,9 +45,11 @@ class AuthFailureException : RuntimeException {
 }
 
 @Suppress("unused")
-class RiskControlException : RuntimeException {
-    constructor() : super()
-    constructor(message: String?) : super(message)
-    constructor(message: String?, cause: Throwable?) : super(message, cause)
-    constructor(cause: Throwable?) : super(cause)
+class RiskControlException(
+    message: String? = null,
+    val code: Int? = null,
+    val requiresVerification: Boolean = false
+) : RuntimeException(message) {
+    constructor(message: String?, cause: Throwable?) : this(message) { initCause(cause) }
+    constructor(cause: Throwable?) : this(cause?.message, cause)
 }

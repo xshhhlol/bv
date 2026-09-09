@@ -66,6 +66,7 @@ class BVApp : Application(), KoinComponent {
         // 晚设置的话第一次申请到的结果就落不了盘
         BiliHttpApi.onWebCookiesUpdated = { buvid3, buvid4, bNut, ticket, ticketExpires ->
             Prefs.buvid3 = buvid3
+            get<AuthRepository>().buvid3 = buvid3
             Prefs.buvid4 = buvid4
             Prefs.bNut = bNut
             Prefs.biliTicket = ticket

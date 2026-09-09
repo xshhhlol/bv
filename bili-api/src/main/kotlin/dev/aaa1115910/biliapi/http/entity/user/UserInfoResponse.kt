@@ -123,23 +123,23 @@ data class UserInfoData(
          */
         @Serializable
         data class Medal(
-            val uid: Long,
+            val uid: Long = 0,
             @SerialName("target_id")
-            val targetId: Long,
+            val targetId: Long = 0,
             @SerialName("medal_id")
-            val medalId: Int,
+            val medalId: Int = 0,
             val level: Long,
             @SerialName("medal_name")
             val medalName: String,
             @SerialName("medal_color")
             val medalColor: Int,
-            val intimacy: Int,
+            val intimacy: Int = 0,
             @SerialName("next_intimacy")
-            val nextIntimacy: Int,
+            val nextIntimacy: Int = 0,
             @SerialName("day_limit")
-            val dayLimit: Int,
+            val dayLimit: Int = 0,
             @SerialName("today_feed")
-            val todayFeed: Int,
+            val todayFeed: Int = 0,
             @SerialName("medal_color_start")
             val medalColorStart: Int,
             @SerialName("medal_color_end")
@@ -147,12 +147,12 @@ data class UserInfoData(
             @SerialName("medal_color_border")
             val medalColorBorder: Int,
             @SerialName("is_lighted")
-            val isLighted: Int,
+            val isLighted: Int = 0,
             @SerialName("light_status")
-            val lightStatus: Int,
+            val lightStatus: Int = 0,
             @SerialName("wearing_status")
-            val wearingStatus: Int,
-            val score: Int
+            val wearingStatus: Int = 0,
+            val score: Int = 0
         )
     }
 

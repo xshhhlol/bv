@@ -11,6 +11,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -56,7 +58,13 @@ fun PgcContent(
     val tvState = rememberLazyListState()
     val varietyState = rememberLazyListState()
 
-    var selectedTab by remember { mutableStateOf(PgcTopNavItem.Anime) }
+    // 和 TopNav 里的选中项一起存，从别的板块切回来时还停在原来那一栏
+    var selectedTab by rememberSaveable(
+        stateSaver = Saver(
+            save = { it.name },
+            restore = { PgcTopNavItem.valueOf(it) }
+        )
+    ) { mutableStateOf(PgcTopNavItem.Anime) }
     var focusOnContent by remember { mutableStateOf(false) }
     val currentListOnTop by remember {
         derivedStateOf {

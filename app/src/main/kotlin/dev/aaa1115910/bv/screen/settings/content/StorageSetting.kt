@@ -1,14 +1,14 @@
 package dev.aaa1115910.bv.screen.settings.content
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,7 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -28,13 +27,16 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.settings.SettingListItem
+import dev.aaa1115910.bv.component.settings.SettingsPage
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Locale
 
 @Composable
 fun StorageSetting(
@@ -104,77 +106,69 @@ fun StorageSetting(
         }
     }
 
-    Box(modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = SettingsMenuNavItem.Storage.getDisplayName(context),
-                style = MaterialTheme.typography.displaySmall
+    SettingsPage(
+        modifier = modifier,
+        title = SettingsMenuNavItem.Storage.getDisplayName(context),
+        subtitle = SettingsMenuNavItem.Storage.getDescription(context)
+    ) {
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_storage_image_cache),
+                supportText = "已经加载过的封面和头像",
+                value = if (loading) stringResource(R.string.settings_storage_calculating)
+                else formatFileSize(imageCacheSize),
+                icon = Icons.Rounded.Image,
+                onClick = {
+                    clearFun = clearImageCaches
+                    content = context.getString(R.string.settings_storage_image_cache)
+                    size = imageCacheSize
+                    showConfirmDialog = true
+                }
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_storage_image_cache),
-                        supportText = if (loading) stringResource(R.string.settings_storage_calculating)
-                        else "${imageCacheSize / 1024 / 1024} MB",
-                        onClick = {
-                            clearFun = clearImageCaches
-                            content = context.getString(R.string.settings_storage_image_cache)
-                            size = imageCacheSize
-                            showConfirmDialog = true
-                        }
-                    )
+        }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_storage_others_cache),
+                supportText = "更新包等临时文件",
+                value = if (loading) stringResource(R.string.settings_storage_calculating)
+                //else formatFileSize(updateCacheSize + libVLCCacheSize),
+                else formatFileSize(updateCacheSize),
+                icon = Icons.Rounded.Folder,
+                onClick = {
+                    clearFun = clearOthersCaches
+                    content = context.getString(R.string.settings_storage_others_cache)
+                    size = updateCacheSize// + libVLCCacheSize
+                    showConfirmDialog = true
                 }
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_storage_others_cache),
-                        supportText = if (loading) stringResource(R.string.settings_storage_calculating)
-                        //else "${updateCacheSize + libVLCCacheSize / 1024 / 1024} MB",
-                        else "${updateCacheSize / 1024 / 1024} MB",
-                        onClick = {
-                            clearFun = clearOthersCaches
-                            content = context.getString(R.string.settings_storage_others_cache)
-                            size = updateCacheSize// + libVLCCacheSize
-                            showConfirmDialog = true
-                        }
-                    )
+            )
+        }
+        //item {
+        //    SettingListItem(
+        //        title = stringResource(R.string.settings_storage_libvlc_files),
+        //        supportText = if (loading) stringResource(R.string.settings_storage_calculating)
+        //        else "${libVLCFileSize / 1024 / 1024} MB",
+        //        onClick = {
+        //            clearFun = clearLibVLCFiles
+        //            content = context.getString(R.string.settings_storage_libvlc_files)
+        //            size = libVLCFileSize
+        //            showConfirmDialog = true
+        //        }
+        //    )
+        //}
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_storage_crash_logs),
+                supportText = "崩溃时自动保存的日志文件",
+                value = if (loading) stringResource(R.string.settings_storage_calculating)
+                else formatFileSize(crashLogsSize),
+                icon = Icons.Rounded.BugReport,
+                onClick = {
+                    clearFun = clearCrashLogs
+                    content = context.getString(R.string.settings_storage_crash_logs)
+                    size = crashLogsSize
+                    showConfirmDialog = true
                 }
-                //item {
-                //    SettingListItem(
-                //        title = stringResource(R.string.settings_storage_libvlc_files),
-                //        supportText = if (loading) stringResource(R.string.settings_storage_calculating)
-                //        else "${libVLCFileSize / 1024 / 1024} MB",
-                //        onClick = {
-                //            clearFun = clearLibVLCFiles
-                //            content = context.getString(R.string.settings_storage_libvlc_files)
-                //            size = libVLCFileSize
-                //            showConfirmDialog = true
-                //        }
-                //    )
-                //}
-
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_storage_crash_logs),
-                        supportText = if (loading) stringResource(R.string.settings_storage_calculating)
-                        else "${crashLogsSize / 1024 / 1024} MB",
-                        onClick = {
-                            clearFun = clearCrashLogs
-                            content = context.getString(R.string.settings_storage_crash_logs)
-                            size = crashLogsSize
-                            showConfirmDialog = true
-                        }
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -202,6 +196,18 @@ private fun getFolderSize(f: File): Long {
     return size
 }
 
+/**
+ * 原来一律按 MB 取整显示，几百 KB 的缓存全都写成「0 MB」，
+ * 看起来像是坏了；按量级选单位，小的也能看出来到底占了多少。
+ */
+private fun formatFileSize(bytes: Long): String = when {
+    bytes <= 0L -> "0 B"
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+    bytes < 1024 * 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
+    else -> String.format(Locale.US, "%.2f GB", bytes / 1024.0 / 1024.0 / 1024.0)
+}
+
 @Composable
 private fun ConfirmDeleteDialog(
     modifier: Modifier = Modifier,
@@ -215,19 +221,41 @@ private fun ConfirmDeleteDialog(
         AlertDialog(
             modifier = modifier,
             onDismissRequest = onHideDialog,
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.CleaningServices,
+                    contentDescription = null,
+                    tint = BVColor.PinkBright
+                )
+            },
             title = { Text(text = "清除$content") },
-            text = { Text(text = "${size / 1024 / 1024} MB") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "将释放 ${formatFileSize(size)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = BVColor.TextPrimary
+                    )
+                    Text(
+                        text = "清除后这些文件会重新生成，不影响已登录的账号",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BVColor.TextTertiary
+                    )
+                }
+            },
             confirmButton = {
                 Button(onClick = {
                     clearFiles()
                     onHideDialog()
                 }) {
-                    Text(text = "确定")
+                    Text(text = stringResource(id = R.string.common_confirm))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = onHideDialog) {
-                    Text(text = "取消")
+                    Text(text = stringResource(id = R.string.common_cancel))
                 }
             }
         )

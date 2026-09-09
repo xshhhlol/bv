@@ -54,6 +54,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.SearchTypeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videoGridColumns
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
@@ -88,7 +89,8 @@ fun SearchResultScreen(
     val logger = KotlinLogging.logger { }
     val tabRowFocusRequester = remember { FocusRequester() }
 
-    var rowSize by remember { mutableIntStateOf(4) }
+    val videoRowSize = videoGridColumns()
+    var rowSize by remember { mutableIntStateOf(videoRowSize) }
 
     var searchKeyword by remember { mutableStateOf("") }
 
@@ -171,9 +173,9 @@ fun SearchResultScreen(
         }
     }
 
-    LaunchedEffect(searchResultViewModel.searchType) {
+    LaunchedEffect(searchResultViewModel.searchType, videoRowSize) {
         rowSize = when (searchResultViewModel.searchType) {
-            SearchType.Video -> 4
+            SearchType.Video -> videoRowSize
             SearchType.MediaBangumi, SearchType.MediaFt -> 6
             SearchType.BiliUser -> 3
         }

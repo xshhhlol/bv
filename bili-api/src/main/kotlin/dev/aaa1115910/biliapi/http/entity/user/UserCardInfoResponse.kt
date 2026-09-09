@@ -20,14 +20,14 @@ data class UserCardData(
     val card: UserCardInfo,
     val space: Space? = null,
     @Serializable(with = BooleanAsIntSerializer::class)
-    val following: Boolean,
+    val following: Boolean = false,
     @SerialName("archive_count")
-    val archiveCount: Int,
+    val archiveCount: Int = 0,
     @SerialName("article_count")
-    val articleCount: Int,
-    val follower: Int,
+    val articleCount: Int = 0,
+    val follower: Int = 0,
     @SerialName("like_num")
-    val likeNum: Int
+    val likeNum: Int = 0
 ) {
     /**
      * 用户卡片详细信息
@@ -60,42 +60,44 @@ data class UserCardData(
      * @param vip 大会员信息
      * @param isSeniorMember 是否为硬核会员 0：否 1：是
      */
+    // 这个接口的字段随账号类型（官号、注销号、老号）时有时无，
+    // 全部给上默认值，缺字段时不至于整条解析失败
     @Serializable
     data class UserCardInfo(
-        val mid: String,
-        val name: String,
-        val approve: Boolean,
-        val sex: String,
-        val rank: Int,
-        val face: String,
+        val mid: String = "",
+        val name: String = "",
+        val approve: Boolean = false,
+        val sex: String = "",
+        val rank: Int = 0,
+        val face: String = "",
         @SerialName("face_nft")
-        val faceNft: Int,
+        val faceNft: Int = 0,
         @SerialName("face_nft_type")
-        val faceNftType: Int,
+        val faceNftType: Int = 0,
         @SerialName("DisplayRank")
-        val displayRank: String,
-        val regtime: Int,
-        val spacesta: Int,
-        val birthday: String,
-        val place: String,
-        val description: String,
-        val article: Int,
+        val displayRank: String = "",
+        val regtime: Int = 0,
+        val spacesta: Int = 0,
+        val birthday: String = "",
+        val place: String = "",
+        val description: String = "",
+        val article: Int = 0,
         //val attentions: List<Any> = emptyList(),
-        val fans: Int,
-        val friend: Int,
-        val attention: Int,
-        val sign: String,
+        val fans: Int = 0,
+        val friend: Int = 0,
+        val attention: Int = 0,
+        val sign: String = "",
         @SerialName("level_info")
-        val levelInfo: LevelInfo,
-        val pendant: Pendant,
-        val nameplate: Nameplate,
+        val levelInfo: LevelInfo? = null,
+        val pendant: Pendant? = null,
+        val nameplate: Nameplate? = null,
         @SerialName("Official")
-        val official: Official,
+        val official: Official? = null,
         @SerialName("official_verify")
-        val officialVerify: OfficialVerify,
-        val vip: Vip,
+        val officialVerify: OfficialVerify? = null,
+        val vip: Vip? = null,
         @SerialName("is_senior_member")
-        val isSeniorMember: Int
+        val isSeniorMember: Int = 0
     )
 
     /**
@@ -107,8 +109,8 @@ data class UserCardData(
     @Serializable
     data class Space(
         @SerialName("s_img")
-        val sImg: String,
+        val sImg: String = "",
         @SerialName("l_img")
-        val lImg: String
+        val lImg: String = ""
     )
 }

@@ -43,6 +43,18 @@ object BVColor {
     /** 焦点描边与光晕 */
     val FocusRing = Color(0xFFFFFFFF)
     val FocusGlow = Color(0xFF23D3EE)
+
+    /**
+     * 获焦时的填充色与其上的内容色。
+     *
+     * tv-material3 里 Button / IconButton / Chip 的 focusedContainerColor 写死取 `onSurface`，
+     * focusedContentColor 取 `inverseOnSurface`；Surface / ListItem 则是 `inverseSurface` 配
+     * `contentColorFor(inverseSurface)`（即 `inverseOnSurface`）。
+     * 所以 [FocusFill]（= inverseSurface）必须是亮色、[OnFocusFill]（= inverseOnSurface）必须是暗色，
+     * 否则获焦后就是一整块白底白字，什么都看不见。
+     */
+    val FocusFill = Color(0xFFF2F4F8)
+    val OnFocusFill = Color(0xFF0B0E17)
 }
 
 /** 焦点描边用的渐变：粉 → 紫 → 青，扫过卡片边缘时会有金属反光的感觉 */
@@ -90,8 +102,8 @@ val BVTvColorScheme = darkColorScheme(
     onSurface = BVColor.TextPrimary,
     surfaceVariant = BVColor.SurfaceVariant,
     onSurfaceVariant = BVColor.TextSecondary,
-    inverseSurface = BVColor.SurfaceHighlight,
-    inverseOnSurface = BVColor.TextPrimary,
+    inverseSurface = BVColor.FocusFill,
+    inverseOnSurface = BVColor.OnFocusFill,
     error = BVColor.Error,
     onError = Color(0xFF2A0A0A),
     border = BVColor.FocusRing,
@@ -118,8 +130,8 @@ val BVCommonColorScheme = androidx.compose.material3.darkColorScheme(
     onSurfaceVariant = BVColor.TextSecondary,
     surfaceContainer = BVColor.SurfaceVariant,
     surfaceContainerHigh = BVColor.SurfaceHighlight,
-    inverseSurface = BVColor.SurfaceHighlight,
-    inverseOnSurface = BVColor.TextPrimary,
+    inverseSurface = BVColor.FocusFill,
+    inverseOnSurface = BVColor.OnFocusFill,
     outline = Color(0xFF3A465E),
     outlineVariant = Color(0xFF262F41),
     error = BVColor.Error,

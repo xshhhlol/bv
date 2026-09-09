@@ -3,15 +3,20 @@ package dev.aaa1115910.bv.screen.settings.content
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Https
+import androidx.compose.material.icons.rounded.NetworkCheck
+import androidx.compose.material.icons.rounded.SettingsEthernet
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -37,7 +42,10 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
+import dev.aaa1115910.bv.component.settings.SettingsGroupTitle
+import dev.aaa1115910.bv.component.settings.SettingsPage
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import org.koin.compose.getKoin
@@ -55,80 +63,78 @@ fun NetworkSetting(
     var showProxyHttpServerEditDialog by remember { mutableStateOf(false) }
     var showProxyGRPCServerEditDialog by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = modifier
+    SettingsPage(
+        modifier = modifier,
+        title = SettingsMenuNavItem.Network.getDisplayName(context),
+        subtitle = SettingsMenuNavItem.Network.getDescription(context)
     ) {
-        Column(
-            modifier = modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = SettingsMenuNavItem.Network.getDisplayName(context),
-                style = MaterialTheme.typography.displaySmall
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        item { SettingsGroupTitle(text = "代理") }
+        item {
+            // 两个服务器地址跟着开关一起展开/收起，所以整块放在同一个 item 里，
+            // 拆成三个 item 的话 AnimatedVisibility 收起时 LazyColumn 会直接跳一下
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
-                    Column {
-                        SettingSwitchListItem(
-                            title = stringResource(R.string.settings_network_enable_proxy_title),
-                            supportText = stringResource(R.string.settings_network_enable_proxy_text),
-                            checked = Prefs.enableProxy,
-                            onCheckedChange = { enable ->
-                                enableProxy = enable
-                                Prefs.enableProxy = enable
-                                if (enable) BVApp.instance?.initProxy()
-                            }
+                SettingSwitchListItem(
+                    title = stringResource(R.string.settings_network_enable_proxy_title),
+                    supportText = stringResource(R.string.settings_network_enable_proxy_text),
+                    icon = Icons.Rounded.VpnKey,
+                    checked = Prefs.enableProxy,
+                    onCheckedChange = { enable ->
+                        enableProxy = enable
+                        Prefs.enableProxy = enable
+                        if (enable) BVApp.instance?.initProxy()
+                    }
+                )
+                AnimatedVisibility(visible = enableProxy) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SettingListItem(
+                            title = stringResource(R.string.settings_network_proxy_http_server_title),
+                            supportText = "HTTP 接口走这台服务器",
+                            value = proxyHttpServer.ifBlank {
+                                stringResource(R.string.settings_network_proxy_server_content_empty)
+                            },
+                            icon = Icons.Rounded.Https,
+                            onClick = { showProxyHttpServerEditDialog = true }
                         )
-                        AnimatedVisibility(visible = enableProxy) {
-                            Column {
-                                SettingListItem(
-                                    modifier = Modifier.padding(top = 12.dp),
-                                    title = stringResource(R.string.settings_network_proxy_http_server_title),
-                                    supportText = if (proxyHttpServer.isBlank()) stringResource(R.string.settings_network_proxy_server_content_empty) else proxyHttpServer,
-                                    onClick = { showProxyHttpServerEditDialog = true }
-                                )
-                                SettingListItem(
-                                    modifier = Modifier.padding(top = 12.dp),
-                                    title = stringResource(R.string.settings_network_proxy_grpc_server_title),
-                                    supportText = if (proxyGRPCServer.isBlank()) stringResource(R.string.settings_network_proxy_server_content_empty) else proxyGRPCServer,
-                                    onClick = { showProxyGRPCServerEditDialog = true }
-                                )
-                            }
-                        }
+                        SettingListItem(
+                            title = stringResource(R.string.settings_network_proxy_grpc_server_title),
+                            supportText = "gRPC 接口走这台服务器",
+                            value = proxyGRPCServer.ifBlank {
+                                stringResource(R.string.settings_network_proxy_server_content_empty)
+                            },
+                            icon = Icons.Rounded.SettingsEthernet,
+                            onClick = { showProxyGRPCServerEditDialog = true }
+                        )
                     }
                 }
-
-                item {
-                    SettingSwitchListItem(
-                        title = stringResource(R.string.settings_network_prefer_official_cdn_title),
-                        supportText = stringResource(R.string.settings_network_prefer_official_cdn_text),
-                        checked = Prefs.preferOfficialCdn,
-                        onCheckedChange = { enable ->
-                            preferOfficialCdn = enable
-                            Prefs.preferOfficialCdn = enable
-                        }
-                    )
-                }
-
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_network_test_title),
-                        supportText = stringResource(R.string.settings_network_test_text),
-                        onClick = {
-                            context.startActivity(Intent(context, SpeedTestActivity::class.java))
-                        }
-                    )
-                }
             }
+        }
+
+        item { SettingsGroupTitle(text = "线路") }
+        item {
+            SettingSwitchListItem(
+                title = stringResource(R.string.settings_network_prefer_official_cdn_title),
+                supportText = stringResource(R.string.settings_network_prefer_official_cdn_text),
+                icon = Icons.Rounded.Cloud,
+                checked = Prefs.preferOfficialCdn,
+                onCheckedChange = { enable ->
+                    preferOfficialCdn = enable
+                    Prefs.preferOfficialCdn = enable
+                }
+            )
+        }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_network_test_title),
+                supportText = stringResource(R.string.settings_network_test_text),
+                icon = Icons.Rounded.NetworkCheck,
+                onClick = {
+                    context.startActivity(Intent(context, SpeedTestActivity::class.java))
+                }
+            )
         }
     }
 
@@ -182,6 +188,7 @@ fun ProxyServerEditDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
                         value = proxyServerString,
                         onValueChange = { proxyServerString = it },
                         singleLine = true,
@@ -189,13 +196,24 @@ fun ProxyServerEditDialog(
                         shape = MaterialTheme.shapes.medium,
                         placeholder = { Text(text = stringResource(R.string.proxy_server_edit_dialog_input_field_label)) }
                     )
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    // 图标原来单独占一行，孤零零挂在文字上面；挪到行首才像一条提示
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Icon(imageVector = Icons.Outlined.Info, contentDescription = null)
+                        Icon(
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .size(16.dp),
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = null,
+                            tint = BVColor.TextTertiary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = stringResource(R.string.proxy_server_edit_dialog_warning),
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            color = BVColor.TextTertiary
                         )
                     }
                 }

@@ -139,7 +139,7 @@ fun VideoPlayerV3Screen(
         modifier = modifier,
         aid = uiState.aid,
         fromSeason = uiState.fromSeason,
-        proxyArea = ProxyArea.MainLand,
+        proxyArea = uiState.proxyArea,
         isLooping = isLooping,
         isPlaying = videoPlayer?.isPlaying ?: false,
         videoShotCache = videoShotCache,
@@ -181,11 +181,10 @@ fun VideoPlayerV3Screen(
             Prefs.showPersistentSeek = showPersistentSeek
         },
         onGoToUpPage = {
-            UpInfoActivity.actionStart(
-                context,
-                mid = uiState.authorMid,
-                name = uiState.authorName
-            )
+            val current = playerViewModel.uiState.value
+            if (current.authorMid != 0L) {
+                UpInfoActivity.actionStart(context, current.authorMid, current.authorName)
+            }
         },
 
         onMediaProfileSettingChange = { action ->
@@ -255,8 +254,10 @@ fun VideoPlayerV3Screen(
                     // 在之前版本中，设置 DanmakuConfig 透明度后，更改其它弹幕设置后，可能会导致弹幕透明度
                     // 突然变成完全不透明一瞬间，因此这次新版选择直接在此处设置透明度
                     .alpha(uiState.danmakuState.opacity)
+                    // 用实时状态而不是 Prefs：Prefs 不是 Compose 状态，
+                    // 在菜单里开关防遮挡不会触发重组，得等别的状态变化才顺带生效
                     .ifElse(
-                        { Prefs.defaultDanmakuMask },
+                        uiState.danmakuState.maskEnabled,
                         Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
                     ),
                 danmakuPlayer = danmakuPlayer

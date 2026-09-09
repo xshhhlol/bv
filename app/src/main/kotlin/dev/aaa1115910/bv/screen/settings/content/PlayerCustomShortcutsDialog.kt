@@ -4,17 +4,10 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,14 +27,14 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
-import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.settings.SettingsActionListItem
+import dev.aaa1115910.bv.component.settings.SettingsDialogSurface
+import dev.aaa1115910.bv.component.settings.SettingsDialogTitle
 import dev.aaa1115910.bv.component.settings.SettingsMenuSelectItem
 import dev.aaa1115910.bv.entity.PlayerCustomShortcut
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutAction
@@ -49,6 +42,7 @@ import dev.aaa1115910.bv.entity.PlayerCustomShortcutActionGroup
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutCatalog
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutKeys
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutsStore
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 
@@ -158,7 +152,6 @@ fun PlayerCustomShortcutsDialog(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerCustomShortcutsMainDialog(
     shortcuts: List<PlayerCustomShortcut>,
@@ -169,45 +162,40 @@ private fun PlayerCustomShortcutsMainDialog(
 ) {
     val context = LocalContext.current
 
-    PlayerCustomShortcutsDialogSurface(
+    SettingsDialogSurface(
         onDismiss = onDismiss
     ) { maxHeightModifier ->
         Column(
             modifier = Modifier.padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
+            SettingsDialogTitle(
                 text = "自定义播放快捷键",
-                style = MaterialTheme.typography.titleLarge
+                subtitle = "选中一条可以改绑或删除"
             )
             LazyColumn(
                 modifier = maxHeightModifier,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 if (shortcuts.isEmpty()) {
                     item {
                         Text(
-                            modifier = Modifier.padding(12.dp),
-                            text = "暂无绑定",
-                            style = MaterialTheme.typography.bodyLarge
+                            modifier = Modifier.padding(vertical = 20.dp),
+                            text = "还没有绑定任何按键",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = BVColor.TextTertiary
                         )
                     }
                 } else {
                     items(shortcuts, key = { it.keyCode }) { shortcut ->
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    text = "${PlayerCustomShortcutKeys.getDisplayName(shortcut.keyCode)}：${
-                                        PlayerCustomShortcutCatalog.getActionDisplayName(
-                                            context,
-                                            shortcut.action
-                                        )
-                                    }"
-                                )
-                            },
-                            trailingContent = {},
-                            onClick = { onEdit(shortcut) },
-                            selected = false
+                        // 按键名当标题，绑定的动作放右边对齐成一列，比拼成一句话好扫
+                        SettingsActionListItem(
+                            title = PlayerCustomShortcutKeys.getDisplayName(shortcut.keyCode),
+                            value = PlayerCustomShortcutCatalog.getActionDisplayName(
+                                context,
+                                shortcut.action
+                            ),
+                            onClick = { onEdit(shortcut) }
                         )
                     }
                 }
@@ -244,7 +232,7 @@ private fun PlayerCustomShortcutKeyCaptureDialog(
         focusRequester.requestFocus()
     }
 
-    PlayerCustomShortcutsDialogSurface(
+    SettingsDialogSurface(
         modifier = Modifier
             .focusRequester(focusRequester)
             .focusable()
@@ -274,13 +262,9 @@ private fun PlayerCustomShortcutKeyCaptureDialog(
             modifier = Modifier.padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
+            SettingsDialogTitle(
                 text = "按下要绑定的按键",
-                style = MaterialTheme.typography.titleLarge
-            )
-            Text(
-                text = "返回、ESC、手柄 B、确认和 Enter 不可绑定",
-                style = MaterialTheme.typography.bodyLarge
+                subtitle = "返回、ESC、手柄 B、确认和 Enter 不可绑定"
             )
             OutlinedButton(onClick = onDismiss) {
                 Text("取消")
@@ -311,7 +295,7 @@ private fun PlayerCustomShortcutActionPickerDialog(
         firstActionFocusRequester.requestFocus(focusScope)
     }
 
-    PlayerCustomShortcutsDialogSurface(
+    SettingsDialogSurface(
         onDismiss = onDismiss
     ) { maxHeightModifier ->
         Column(
@@ -327,9 +311,9 @@ private fun PlayerCustomShortcutActionPickerDialog(
                 },
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "选择动作：${PlayerCustomShortcutKeys.getDisplayName(keyCode)}",
-                style = MaterialTheme.typography.titleLarge
+            SettingsDialogTitle(
+                text = "选择动作",
+                subtitle = PlayerCustomShortcutKeys.getDisplayName(keyCode)
             )
             LazyColumn(
                 modifier = maxHeightModifier
@@ -338,14 +322,12 @@ private fun PlayerCustomShortcutActionPickerDialog(
             ) {
                 if (currentShortcut != null) {
                     item {
-                        ListItem(
+                        SettingsActionListItem(
                             modifier = Modifier.onFocusChanged {
                                 if (it.hasFocus) focusedActionIndex = 0
                             },
-                            headlineContent = { Text(text = "删除当前绑定") },
-                            trailingContent = {},
-                            onClick = onRemove,
-                            selected = false
+                            title = "删除当前绑定",
+                            onClick = onRemove
                         )
                     }
                 }
@@ -404,7 +386,7 @@ private fun PlayerCustomShortcutValuePickerDialog(
         firstValueFocusRequester.requestFocus(focusScope)
     }
 
-    PlayerCustomShortcutsDialogSurface(
+    SettingsDialogSurface(
         onDismiss = onDismiss
     ) { maxHeightModifier ->
         Column(
@@ -420,9 +402,9 @@ private fun PlayerCustomShortcutValuePickerDialog(
                 },
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "${group.displayName}：${PlayerCustomShortcutKeys.getDisplayName(keyCode)}",
-                style = MaterialTheme.typography.titleLarge
+            SettingsDialogTitle(
+                text = group.displayName,
+                subtitle = PlayerCustomShortcutKeys.getDisplayName(keyCode)
             )
             LazyColumn(
                 modifier = maxHeightModifier
@@ -465,16 +447,16 @@ private fun PlayerCustomShortcutClearConfirmDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    PlayerCustomShortcutsDialogSurface(
+    SettingsDialogSurface(
         onDismiss = onDismiss
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
+            SettingsDialogTitle(
                 text = "清空全部绑定？",
-                style = MaterialTheme.typography.titleLarge
+                subtitle = "清空后所有自定义按键都会失效"
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onConfirm) {
@@ -484,40 +466,6 @@ private fun PlayerCustomShortcutClearConfirmDialog(
                     Text("取消")
                 }
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlayerCustomShortcutsDialogSurface(
-    modifier: Modifier = Modifier,
-    onDismiss: () -> Unit,
-    content: @Composable (Modifier) -> Unit
-) {
-    val windowInfo = LocalWindowInfo.current
-    val density = LocalDensity.current
-    val maxHeightDp = with(density) {
-        (windowInfo.containerSize.height * 0.6f).toDp()
-    }
-
-    BasicAlertDialog(
-        modifier = Modifier.padding(vertical = 24.dp),
-        onDismissRequest = onDismiss
-    ) {
-        Surface(
-            modifier = modifier
-                .fillMaxWidth(0.9f)
-                .wrapContentHeight(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 4.dp,
-        ) {
-            content(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = maxHeightDp)
-            )
         }
     }
 }

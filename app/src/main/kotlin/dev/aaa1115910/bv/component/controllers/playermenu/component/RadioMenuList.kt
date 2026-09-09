@@ -43,13 +43,13 @@ fun RadioMenuList(
                 result
             }
             .focusRestorer(focusRequester),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(vertical = 80.dp, horizontal = 8.dp)
     ) {
         itemsIndexed(items) { index, item ->
             MenuListItem(
                 modifier = Modifier
-                    .width(200.dp)
+                    .width(150.dp)
                     .ifElse(selected == index, Modifier.focusRequester(focusRequester)),
                 text = item,
                 selected = selected == index,

@@ -101,6 +101,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.VideoInfoRepository
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.Prefs
@@ -503,7 +504,7 @@ fun SeasonCover(
         shape = CardDefaults.shape(shape = MaterialTheme.shapes.large),
         glow = CardDefaults.glow(
             focusedGlow = Glow(
-                elevationColor = MaterialTheme.colorScheme.inverseSurface,
+                elevationColor = BVColor.FocusGlow,
                 elevation = 16.dp
             )
         ),
@@ -1107,7 +1108,7 @@ private fun SeasonSelectorContent(
                                 ),
                             glow = CardDefaults.glow(
                                 focusedGlow = Glow(
-                                    elevationColor = MaterialTheme.colorScheme.inverseSurface,
+                                    elevationColor = BVColor.FocusGlow,
                                     elevation = 16.dp
                                 )
                             ),

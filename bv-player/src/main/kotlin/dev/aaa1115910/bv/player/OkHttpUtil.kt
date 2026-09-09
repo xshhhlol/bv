@@ -1,15 +1,23 @@
 package dev.aaa1115910.bv.player
 
 import android.content.Context
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 object OkHttpUtil {
+    /** 连不上就赶紧换下一个 CDN，没必要在一个坏节点上干等 */
+    private const val ConnectTimeoutSeconds = 6L
+
+    /** 4K 码率高，单次读取的时间给宽裕点，免得网络抖一下就当成失败 */
+    private const val ReadTimeoutSeconds = 20L
+
     fun generateCustomSslOkHttpClient(context: Context): OkHttpClient {
         val certificateFactory = CertificateFactory.getInstance("X.509")
         val customCaMap = mapOf(
@@ -44,6 +52,12 @@ object OkHttpUtil {
         }
 
         return OkHttpClient.Builder()
+            .connectTimeout(ConnectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(ReadTimeoutSeconds, TimeUnit.SECONDS)
+            .writeTimeout(ReadTimeoutSeconds, TimeUnit.SECONDS)
+            // 播放期间会不断发 Range 请求续传，连接复用能省掉每次的握手
+            .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
+            .retryOnConnectionFailure(true)
             .sslSocketFactory(
                 sslContext.socketFactory,
                 trustManagerFactory.trustManagers[0] as X509TrustManager

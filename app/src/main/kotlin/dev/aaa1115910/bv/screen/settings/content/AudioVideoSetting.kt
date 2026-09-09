@@ -1,31 +1,31 @@
 package dev.aaa1115910.bv.screen.settings.content
 
 import android.content.Context
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VideoSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import dev.aaa1115910.bv.entity.ControllerButtonsStore
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
+import dev.aaa1115910.bv.component.settings.SettingsGroupTitle
+import dev.aaa1115910.bv.component.settings.SettingsPage
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutsStore
 import dev.aaa1115910.bv.entity.Resolution
@@ -38,7 +38,6 @@ fun AudioVideoSetting(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val scrollState = rememberScrollState()
 
     var showResolutionDialog by remember { mutableStateOf(false) }
     var showAudioCodecDialog by remember { mutableStateOf(false) }
@@ -59,76 +58,108 @@ fun AudioVideoSetting(
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
     var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    SettingsPage(
+        modifier = modifier,
+        title = SettingsMenuNavItem.AudioVideo.getDisplayName(context),
+        subtitle = SettingsMenuNavItem.AudioVideo.getDescription(context)
     ) {
-        Text(
-            text = SettingsMenuNavItem.AudioVideo.getDisplayName(context),
-            style = MaterialTheme.typography.displaySmall
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        SettingListItem(
-            title = "默认分辨率",
-            supportText = "当前：${selectedResolution.getDisplayName(context)}",
-            onClick = { showResolutionDialog = true }
-        )
-        SettingListItem(
-            title = "默认视频编码",
-            supportText = "当前：${selectedVideoCodec.getDisplayName(context)}",
-            onClick = { showVideoCodecDialog = true }
-        )
-        SettingListItem(
-            title = "默认音频编码",
-            supportText = "当前：${selectedAudioCodec.getDisplayName(context)}",
-            onClick = { showAudioCodecDialog = true }
-        )
-        SettingListItem(
-            title = "默认播放速度",
-            supportText = "当前：${selectedPlaySpeed.getDisplayName(context)}",
-            onClick = { showPlaySpeedDialog = true }
-        )
-        SettingListItem(
-            title = "播放结束动作",
-            supportText = "当前：${selectedActionAfterPlay.getDisplayName(context)}",
-            onClick = { showActionAfterPlayDialog = true }
-        )
-        SettingListItem(
-            title = "自定义播放快捷键",
-            supportText = "当前：${playerCustomShortcuts.size} 个绑定",
-            onClick = { showPlayerCustomShortcutsDialog = true }
-        )
-        SettingListItem(
-            title = "控制条按钮",
-            supportText = "当前：显示 ${controllerButtons.count { !it.hidden }} 个，隐藏 ${controllerButtons.count { it.hidden }} 个",
-            onClick = { showPlayerControllerButtonsDialog = true }
-        )
-        SettingSwitchListItem(
-            title = stringResource(R.string.settings_media_software_video_renderer_title),
-            supportText = stringResource(R.string.settings_media_software_video_renderer_text),
-            checked = enableSoftwareVideoRenderer,
-            onCheckedChange = {
-                enableSoftwareVideoRenderer = it
-                Prefs.enableSoftwareVideoDecoder = it
-            }
-        )
-        SettingSwitchListItem(
-            title = stringResource(R.string.settings_media_ffmpeg_audio_renderer_title),
-            supportText = stringResource(R.string.settings_media_ffmpeg_audio_renderer_text),
-            checked = enableFfmpegAudioRenderer,
-            onCheckedChange = {
-                enableFfmpegAudioRenderer = it
-                Prefs.enableFfmpegAudioRenderer = it
-            }
-        )
+        item { SettingsGroupTitle(text = "默认播放参数") }
+        item {
+            SettingListItem(
+                title = "默认分辨率",
+                supportText = "视频没有该清晰度时会自动降级",
+                value = selectedResolution.getDisplayName(context),
+                icon = Icons.Rounded.HighQuality,
+                onClick = { showResolutionDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = "默认视频编码",
+                supportText = "优先选用的视频编码格式",
+                value = selectedVideoCodec.getDisplayName(context),
+                icon = Icons.Rounded.VideoSettings,
+                onClick = { showVideoCodecDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = "默认音频编码",
+                supportText = "优先选用的音频编码格式",
+                value = selectedAudioCodec.getDisplayName(context),
+                icon = Icons.Rounded.GraphicEq,
+                onClick = { showAudioCodecDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = "默认播放速度",
+                supportText = "每次开始播放时的倍速",
+                value = selectedPlaySpeed.getDisplayName(context),
+                icon = Icons.Rounded.Speed,
+                onClick = { showPlaySpeedDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = "播放结束动作",
+                supportText = "一集放完之后做什么",
+                value = selectedActionAfterPlay.getDisplayName(context),
+                icon = Icons.Rounded.SkipNext,
+                onClick = { showActionAfterPlayDialog = true }
+            )
+        }
+
+        item { SettingsGroupTitle(text = "操控") }
+        item {
+            SettingListItem(
+                title = "自定义播放快捷键",
+                supportText = "把遥控器按键映射到播放器动作",
+                value = "${playerCustomShortcuts.size} 个绑定",
+                icon = Icons.Rounded.Keyboard,
+                onClick = { showPlayerCustomShortcutsDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = "控制条按钮",
+                supportText = "挑选播放控制条上显示哪些按钮",
+                value = "显示 ${controllerButtons.count { !it.hidden }} 个",
+                icon = Icons.Rounded.Tune,
+                onClick = { showPlayerControllerButtonsDialog = true }
+            )
+        }
+
+        item { SettingsGroupTitle(text = "解码") }
+        item {
+            SettingSwitchListItem(
+                title = stringResource(R.string.settings_media_software_video_renderer_title),
+                supportText = stringResource(R.string.settings_media_software_video_renderer_text),
+                icon = Icons.Rounded.Memory,
+                checked = enableSoftwareVideoRenderer,
+                onCheckedChange = {
+                    enableSoftwareVideoRenderer = it
+                    Prefs.enableSoftwareVideoDecoder = it
+                }
+            )
+        }
+        item {
+            SettingSwitchListItem(
+                title = stringResource(R.string.settings_media_ffmpeg_audio_renderer_title),
+                supportText = stringResource(R.string.settings_media_ffmpeg_audio_renderer_text),
+                icon = Icons.Rounded.Headphones,
+                checked = enableFfmpegAudioRenderer,
+                onCheckedChange = {
+                    enableFfmpegAudioRenderer = it
+                    Prefs.enableFfmpegAudioRenderer = it
+                }
+            )
+        }
     }
     // 弹窗复用组件
     if (showResolutionDialog) {
         OptionDialog(
+            title = "默认分辨率",
             options = Resolution.entries.toTypedArray(),
             selectedOption = selectedResolution,
             onDismiss = { showResolutionDialog = false },
@@ -142,6 +173,7 @@ fun AudioVideoSetting(
 
     if (showVideoCodecDialog) {
         OptionDialog(
+            title = "默认视频编码",
             options = VideoCodec.entries.toTypedArray(),
             selectedOption = selectedVideoCodec,
             onDismiss = { showVideoCodecDialog = false },
@@ -155,6 +187,7 @@ fun AudioVideoSetting(
 
     if (showAudioCodecDialog) {
         OptionDialog(
+            title = "默认音频编码",
             options = Audio.entries.toTypedArray(),
             selectedOption = selectedAudioCodec,
             onDismiss = { showAudioCodecDialog = false },
@@ -168,6 +201,7 @@ fun AudioVideoSetting(
 
     if (showPlaySpeedDialog) {
         OptionDialog(
+            title = "默认播放速度",
             options = PlaySpeedItem.entries.toTypedArray(),
             selectedOption = selectedPlaySpeed,
             onDismiss = { showPlaySpeedDialog = false },
@@ -181,6 +215,7 @@ fun AudioVideoSetting(
 
     if (showActionAfterPlayDialog) {
         OptionDialog(
+            title = "播放结束动作",
             options = ActionAfterPlayItems.entries.toTypedArray(),
             selectedOption = selectedActionAfterPlay,
             onDismiss = { showActionAfterPlayDialog = false },

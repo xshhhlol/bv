@@ -1,69 +1,59 @@
 package dev.aaa1115910.bv.ui.theme
 
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 
 /**
  * 页面/标签切换的统一转场。
  *
- * 进场比出场慢一点、并且带一点点放大，视觉上是新内容「推」着旧内容走，
- * 而不是两块内容同时平移——后者在电视上很容易看出撕裂感。
+ * 转场期间新旧两个页面是同时存在的，两块满屏网格一起布局、绘制，电视上很容易在这一下掉帧。
+ * 所以这里刻意做得省：
+ *
+ * - 时间压到 260ms，重叠窗口小一半，新页面首次组合的开销不会和长动画撞在一起；
+ * - 不再叠 scale——alpha 和 scale 同时作用在满屏子树上会多一层离屏合成；
+ * - 出场只淡出、不再位移，少一个图层变换；
+ * - 关掉 SizeTransform 的裁剪，三个页面本来就一样大，没必要为此多一层 clip。
  */
 fun tabContentTransform(forward: Boolean): ContentTransform {
     val direction = if (forward) 1 else -1
-    val enterSpec = tween<Float>(BVMotion.DurationSlow, easing = BVMotion.EmphasizedDecelerateEasing)
-    val exitSpec = tween<Float>(BVMotion.DurationFast + 60, easing = BVMotion.StandardEasing)
+    val enterSpec =
+        tween<Float>(BVMotion.DurationMedium, easing = BVMotion.EmphasizedDecelerateEasing)
+    val exitSpec = tween<Float>(BVMotion.DurationFast, easing = BVMotion.StandardEasing)
 
-    return (
-            fadeIn(animationSpec = enterSpec) +
-                    scaleIn(animationSpec = enterSpec, initialScale = 0.985f) +
-                    slideInHorizontally(
-                        animationSpec = tween(
-                            BVMotion.DurationSlow,
-                            easing = BVMotion.EmphasizedDecelerateEasing
-                        )
-                    ) { direction * it / 12 }
-            ) togetherWith (
-            fadeOut(animationSpec = exitSpec) +
-                    slideOutHorizontally(
-                        animationSpec = tween(
-                            BVMotion.DurationMedium,
-                            easing = BVMotion.StandardEasing
-                        )
-                    ) { -direction * it / 20 }
-            )
+    return ContentTransform(
+        targetContentEnter = fadeIn(animationSpec = enterSpec) +
+                slideInHorizontally(
+                    animationSpec = tween(
+                        BVMotion.DurationMedium,
+                        easing = BVMotion.EmphasizedDecelerateEasing
+                    )
+                ) { direction * it / 16 },
+        initialContentExit = fadeOut(animationSpec = exitSpec),
+        sizeTransform = SizeTransform(clip = false)
+    )
 }
 
 /** 左侧导航切主页面时用竖向位移，和顶部 tab 的横向位移区分开 */
 fun sectionContentTransform(forward: Boolean): ContentTransform {
     val direction = if (forward) 1 else -1
-    val enterSpec = tween<Float>(BVMotion.DurationSlow, easing = BVMotion.EmphasizedDecelerateEasing)
-    val exitSpec = tween<Float>(BVMotion.DurationFast + 60, easing = BVMotion.StandardEasing)
+    val enterSpec =
+        tween<Float>(BVMotion.DurationMedium, easing = BVMotion.EmphasizedDecelerateEasing)
+    val exitSpec = tween<Float>(BVMotion.DurationFast, easing = BVMotion.StandardEasing)
 
-    return (
-            fadeIn(animationSpec = enterSpec) +
-                    scaleIn(animationSpec = enterSpec, initialScale = 0.99f) +
-                    slideInVertically(
-                        animationSpec = tween(
-                            BVMotion.DurationSlow,
-                            easing = BVMotion.EmphasizedDecelerateEasing
-                        )
-                    ) { direction * it / 16 }
-            ) togetherWith (
-            fadeOut(animationSpec = exitSpec) +
-                    slideOutVertically(
-                        animationSpec = tween(
-                            BVMotion.DurationMedium,
-                            easing = BVMotion.StandardEasing
-                        )
-                    ) { -direction * it / 24 }
-            )
+    return ContentTransform(
+        targetContentEnter = fadeIn(animationSpec = enterSpec) +
+                slideInVertically(
+                    animationSpec = tween(
+                        BVMotion.DurationMedium,
+                        easing = BVMotion.EmphasizedDecelerateEasing
+                    )
+                ) { direction * it / 20 },
+        initialContentExit = fadeOut(animationSpec = exitSpec),
+        sizeTransform = SizeTransform(clip = false)
+    )
 }

@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -98,6 +99,7 @@ fun VideoPlayerController(
 
     content: @Composable () -> Unit
 ) {
+    val currentUiState by rememberUpdatedState(uiState)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger {}
@@ -223,10 +225,11 @@ fun VideoPlayerController(
             PlayerCustomShortcutAction.OpenVideoDetail -> {
                 VideoInfoActivity.actionStart(
                     context = context,
-                    aid = aid,
-                    fromSeason = fromSeason,
+                    aid = currentUiState.aid,
+                    epid = currentUiState.epid.takeIf { currentUiState.fromSeason },
+                    fromSeason = currentUiState.fromSeason,
                     fromController = true,
-                    proxyArea = proxyArea
+                    proxyArea = currentUiState.proxyArea
                 )
             }
 
@@ -435,8 +438,9 @@ fun VideoPlayerController(
             }
 
             Key.Menu -> {
-                showInfoSeekController = false
-                showMenuController = !showMenuController
+                // 菜单键呼出播放控制条，播放器设置留给控制条上的「打开设置」按钮和长按确认键
+                showMenuController = false
+                showInfoSeekController = !showInfoSeekController
                 return true
             }
 
@@ -588,6 +592,10 @@ fun VideoPlayerController(
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
             isLooping = isLooping,
+            authorName = uiState.authorName,
+            publishDate = uiState.publishDate,
+            viewCount = uiState.viewCount,
+            onlineCount = uiState.onlineCount,
             onDirectionLeft = { onDirectionLeft() },
             onDirectionRight = { onDirectionRight() },
             onSeekGoTime = { onSeekGoTime() },
@@ -603,6 +611,10 @@ fun VideoPlayerController(
                 showInfoSeekController = false
                 showMenuController = true
             },
+            onShowVideoList = {
+                showInfoSeekController = false
+                showListController = true
+            },
             onShowRelatedVideos = {
                 if (isPlaying) onPause()
 
@@ -612,10 +624,11 @@ fun VideoPlayerController(
             onGoToVideoInfo = {
                 VideoInfoActivity.actionStart(
                     context = context,
-                    aid = aid,
-                    fromSeason = fromSeason,
+                    aid = currentUiState.aid,
+                    epid = currentUiState.epid.takeIf { currentUiState.fromSeason },
+                    fromSeason = currentUiState.fromSeason,
                     fromController = true,
-                    proxyArea = proxyArea
+                    proxyArea = currentUiState.proxyArea
                 )
             },
             onToggleLoop = onToggleLoop,

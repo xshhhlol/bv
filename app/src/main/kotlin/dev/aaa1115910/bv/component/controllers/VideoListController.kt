@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DenseListItem
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
@@ -154,7 +155,8 @@ fun VideoListController(
                                             else
                                                 Icons.Default.KeyboardArrowDown,
                                             contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.7f)
+                                            // 跟随列表项自身的内容色，获焦变亮底时才不会糊成一片
+                                            tint = LocalContentColor.current.copy(alpha = 0.7f)
                                         )
                                     }
                                 }

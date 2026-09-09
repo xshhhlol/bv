@@ -43,8 +43,8 @@ fun CheckBoxMenuList(
                 result
             }
             .focusRestorer(focusRequester),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(vertical = 80.dp, horizontal = 8.dp)
     ) {
         itemsIndexed(items) { index, item ->
             MenuListItem(

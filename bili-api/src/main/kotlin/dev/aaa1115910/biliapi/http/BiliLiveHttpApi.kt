@@ -6,7 +6,10 @@ import dev.aaa1115910.biliapi.http.entity.live.HistoryDanmaku
 import dev.aaa1115910.biliapi.http.entity.live.RoomPlayInfoData
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
 import io.github.oshai.kotlinlogging.KotlinLogging
+import dev.aaa1115910.biliapi.http.util.encApiSign
+import dev.aaa1115910.biliapi.http.util.injectBuvid3Cookie
 import io.ktor.client.HttpClient
+import dev.aaa1115910.biliapi.http.util.validateApiRiskResponses
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -15,7 +18,7 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.http.URLProtocol
-import io.ktor.serialization.kotlinx.json.json
+import dev.aaa1115910.biliapi.http.util.riskAwareJson
 import kotlinx.serialization.json.Json
 
 object BiliLiveHttpApi {
@@ -30,8 +33,9 @@ object BiliLiveHttpApi {
     private fun createClient() {
         client = HttpClient(OkHttp) {
             BiliUserAgent()
+            validateApiRiskResponses()
             install(ContentNegotiation) {
-                json(Json {
+                riskAwareJson(Json {
                     coerceInputValues = true
                     ignoreUnknownKeys = true
                     prettyPrint = true
@@ -47,6 +51,9 @@ object BiliLiveHttpApi {
                     protocol = URLProtocol.HTTPS
                 }
             }
+        }.apply {
+            encApiSign()
+            injectBuvid3Cookie()
         }
     }
 
@@ -56,6 +63,7 @@ object BiliLiveHttpApi {
     suspend fun getLiveDanmuInfo(roomId: Int): BiliResponse<DanmuInfoData> =
         client.get("/xlive/web-room/v1/index/getDanmuInfo") {
             parameter("id", roomId)
+            parameter("type", 0)
         }.body()
 
     /**

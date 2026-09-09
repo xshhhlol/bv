@@ -58,10 +58,14 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.ControllerButton
 import dev.aaa1115910.bv.entity.ControllerButtonsStore
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.FocusRingBrush
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.formatPubTimeString
+import dev.aaa1115910.bv.util.toWanString
+import java.util.Date
 import kotlinx.coroutines.delay
 
 @Composable
@@ -78,12 +82,17 @@ fun ControllerVideoInfo(
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
+    authorName: String,
+    publishDate: Date?,
+    viewCount: Int,
+    onlineCount: String?,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
     onPlayPause: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
+    onShowVideoList: () -> Unit,
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
@@ -102,7 +111,11 @@ fun ControllerVideoInfo(
             ControllerVideoInfoTop(
                 modifier = Modifier.align(Alignment.TopCenter),
                 title = title,
-                clock = clock
+                clock = clock,
+                authorName = authorName,
+                publishDate = publishDate,
+                viewCount = viewCount,
+                onlineCount = onlineCount
             )
         }
         AnimatedVisibility(
@@ -130,6 +143,7 @@ fun ControllerVideoInfo(
                 onPlayPause = onPlayPause,
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
                 onShowSettings = onShowSettings,
+                onShowVideoList = onShowVideoList,
                 onShowRelatedVideos = onShowRelatedVideos,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
@@ -143,7 +157,11 @@ fun ControllerVideoInfo(
 fun ControllerVideoInfoTop(
     modifier: Modifier = Modifier,
     title: String,
-    clock: Pair<Int, Int>
+    clock: Pair<Int, Int>,
+    authorName: String = "",
+    publishDate: Date? = null,
+    viewCount: Int = -1,
+    onlineCount: String? = null
 ) {
     Column(
         modifier = modifier
@@ -169,24 +187,93 @@ fun ControllerVideoInfoTop(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(end = 8.dp),
-                text = title,
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    shadow = Shadow(
-                        color = Color.Black,
-                        blurRadius = 1f
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        shadow = Shadow(
+                            color = Color.Black,
+                            blurRadius = 1f
+                        ),
                     ),
-                ),
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                VideoMetaLine(
+                    authorName = authorName,
+                    publishDate = publishDate,
+                    viewCount = viewCount,
+                    onlineCount = onlineCount
+                )
+            }
             Clock(
                 hour = clock.first,
                 minute = clock.second,
+            )
+        }
+    }
+}
+
+/**
+ * 标题下面那行副信息：UP主 · 发布时间 · 播放量 · 当前在看
+ *
+ * 拿不到的字段直接不显示，不占位也不留下孤零零的分隔点。
+ * 「在看」用品牌粉标出来，它是唯一会实时变的数字。
+ */
+@Composable
+private fun VideoMetaLine(
+    modifier: Modifier = Modifier,
+    authorName: String,
+    publishDate: Date?,
+    viewCount: Int,
+    onlineCount: String?
+) {
+    val metaItems = buildList {
+        authorName.takeIf { it.isNotBlank() }?.let { add(it) }
+        publishDate?.let { add(it.formatPubTimeString()) }
+        viewCount.takeIf { it >= 0 }?.let { add("${it.toWanString()}次播放") }
+    }
+    if (metaItems.isEmpty() && onlineCount == null) return
+
+    val metaTextStyle = MaterialTheme.typography.labelLarge.copy(
+        shadow = Shadow(color = Color.Black, blurRadius = 1f)
+    )
+
+    @Composable
+    fun Separator() = Text(
+        text = "·",
+        style = metaTextStyle,
+        color = Color.White.copy(alpha = 0.4f)
+    )
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        metaItems.forEachIndexed { index, item ->
+            if (index > 0) Separator()
+            Text(
+                text = item,
+                style = metaTextStyle,
+                color = Color.White.copy(alpha = 0.75f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        onlineCount?.let {
+            if (metaItems.isNotEmpty()) Separator()
+            Text(
+                text = "$it 人在看",
+                style = metaTextStyle,
+                color = BVColor.PinkBright,
+                maxLines = 1
             )
         }
     }
@@ -210,6 +297,7 @@ fun ControllerVideoInfoBottom(
     onPlayPause: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
+    onShowVideoList: () -> Unit,
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
@@ -341,6 +429,7 @@ fun ControllerVideoInfoBottom(
                 ControllerButton.PlayPause -> onPlayPause
                 ControllerButton.Danmaku -> onDanmakuSwitchChange
                 ControllerButton.Settings -> onShowSettings
+                ControllerButton.VideoList -> onShowVideoList
                 ControllerButton.VideoDetail -> onGoToVideoInfo
                 ControllerButton.UpSpace -> onGoToUpPage
                 ControllerButton.Related -> onShowRelatedVideos
@@ -456,12 +545,17 @@ private fun ControllerVideoInfoPreview() {
             fromSeason = false,
             danmakuEnabled = false,
             isLooping = false,
+            authorName = "某位UP主",
+            publishDate = Date(),
+            viewCount = 123456,
+            onlineCount = "1000+",
             onDirectionRight = {},
             onDirectionLeft = {},
             onSeekGoTime = {},
             onPlayPause = {},
             onDanmakuSwitchChange = {},
             onShowSettings = {},
+            onShowVideoList = {},
             onShowRelatedVideos = {},
             onGoToVideoInfo = {},
             onToggleLoop = {},

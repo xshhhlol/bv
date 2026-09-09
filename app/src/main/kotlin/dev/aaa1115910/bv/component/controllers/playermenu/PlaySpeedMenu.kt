@@ -57,7 +57,7 @@ fun PlaySpeedMenuList(
                     false
                 }
                 .focusRestorer(focusRequester),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
             contentPadding = PaddingValues(8.dp),
         ) {
             itemsIndexed(PlaySpeedItem.entries.toMutableList()) { index, item ->

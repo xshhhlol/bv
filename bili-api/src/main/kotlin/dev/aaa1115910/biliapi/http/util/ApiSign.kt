@@ -15,8 +15,15 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.clone
 import io.ktor.http.encodedPath
 import io.ktor.http.plus
+import io.ktor.util.AttributeKey
 import java.net.URLEncoder
 import java.security.MessageDigest
+
+private val SkipWebFingerprintCookies = AttributeKey<Boolean>("SkipWebFingerprintCookies")
+
+fun HttpRequestBuilder.skipWebFingerprintCookies() {
+    attributes.put(SkipWebFingerprintCookies, true)
+}
 
 private const val APP_KEY = "dfca71928277209b"
 private const val APP_SEC = "b5475a8825547a4fc26c7d518eaaa02e"
@@ -40,12 +47,17 @@ private fun Map<String, String>.toSortedQueryString(): String =
 private fun getMixinKey(orig: String): String =
     mixinKeyEncTab.fold("") { s, i -> s + orig[i] }.substring(0, 32)
 
-private val HttpRequestBuilder.isAppRequest: Boolean
-    get() = url.parameters.contains("access_key") || url.host == "app.bilibili.com"
+internal val HttpRequestBuilder.isAppRequest: Boolean
+    get() = url.parameters.contains("access_key") || url.host == "app.bilibili.com" ||
+        (body as? FormDataContent)?.formData?.contains("access_key") == true
 
 fun HttpRequestBuilder.encAppPost() {
-    var parameters = (body as FormDataContent).formData
-    parameters += Parameters.build { append("appkey", APP_KEY) }
+    var parameters = Parameters.build {
+        (body as FormDataContent).formData.entries()
+            .filter { it.key != "appkey" && it.key != "sign" }
+            .forEach { (key, values) -> appendAll(key, values) }
+        append("appkey", APP_KEY)
+    }
 
     val sortedQueryString = parameters.entries()
         .associate { it.key to it.value.first() }
@@ -58,9 +70,11 @@ fun HttpRequestBuilder.encAppPost() {
 }
 
 fun HttpRequestBuilder.encAppGet() {
+    url.parameters.remove("appkey")
+    url.parameters.remove("sign")
     parameter("appkey", APP_KEY)
 
-    val sortedQueryString = url.encodedParameters.entries()
+    val sortedQueryString = url.parameters.entries()
         .associate { it.key to it.value.first() }
         .toSortedQueryString()
 
@@ -69,15 +83,20 @@ fun HttpRequestBuilder.encAppGet() {
     println("sign: $sign")
 }
 
+internal fun canonicalWbiQuery(parameters: Map<String, String>): String =
+    parameters.toSortedMap().entries.joinToString("&") { (key, value) ->
+        val filtered = value.filter { it !in "!'()*" }
+        val encoded = URLEncoder.encode(filtered, "UTF-8").replace("+", "%20").replace("%7E", "~")
+        "$key=$encoded"
+    }
+
 suspend fun HttpRequestBuilder.encWbi() {
     // wbi key 每天都会轮换。这里每次签名前都尝试刷新（updateWbi 内部按 2 小时节流），
     // 否则常驻内存的电视端会一直用启动时那份 key，轮换后所有 wbi 接口都返回 -352 风控校验失败
     BiliHttpApi.ensureWebCookies()
     BiliHttpApi.updateWbi()
-    val mixinKey = getMixinKey(
-        requireNotNull(BiliHttpApi.wbiImgKey) { "wbiImgKey can't be null!" } +
-                requireNotNull(BiliHttpApi.wbiSubKey) { "wbiSubKey can't be null!" }
-    )
+    val keys = requireNotNull(BiliHttpApi.currentWbiKeys()) { "WBI keys unavailable" }
+    val mixinKey = getMixinKey(keys.first + keys.second)
 
     // HttpRequestRetry 重试时会复用同一个 request builder，
     // 重新签名前必须先清掉上一次的签名参数，否则会追加出重复的 wts/w_rid 导致签名失效
@@ -87,15 +106,8 @@ suspend fun HttpRequestBuilder.encWbi() {
     val wts = (System.currentTimeMillis() / 1000).toInt()
     parameter("wts", wts)
 
-    val sortedParams = url.encodedParameters.entries()
-        .associate { it.key to it.value.first() }
-        .toSortedMap()
-        .map { (key, value) ->
-            // 过滤特殊字符 !"!'()*
-            val filteredValue = value.filter { c -> c !in setOf('!', '\'', '(', ')', '*') }
-            "$key=$filteredValue"
-        }
-        .joinToString("&")
+    val sortedParams = canonicalWbiQuery(url.parameters.entries()
+        .associate { it.key to it.value.first() })
 
     val wRid = (sortedParams + mixinKey).md5()
     parameter("w_rid", wRid)
@@ -120,7 +132,8 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
             HttpMethod.Get -> {
                 val isWbiRequest = request.url.encodedPath.contains("wbi") ||
                         request.url.encodedPath.contains("/pgc/player/web/playurl") ||
-                        request.url.encodedPath.contains("/pgc/player/web/v2/playurl")
+                        request.url.encodedPath.contains("/pgc/player/web/v2/playurl") ||
+                        request.url.encodedPath == "/xlive/web-room/v1/index/getDanmuInfo"
                 if (isWbiRequest) {
                     println("Enc wbi for get request: ${getUrlWithoutAccessToken(request.url)}")
                     request.encWbi()
@@ -133,7 +146,8 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
 
             HttpMethod.Post -> {
                 if (request.body is EmptyContent) return@intercept execute(request)
-                val parameters = (request.body as FormDataContent).formData
+                val parameters = (request.body as? FormDataContent)?.formData
+                    ?: return@intercept execute(request)
                 val isParametersContainKeywords = parameters.contains("access_key")
                 val isPathContainKeywords = request.url.encodedPath.contains("passport")
                 if (isParametersContainKeywords || isPathContainKeywords) {
@@ -150,16 +164,27 @@ fun HttpClient.injectBuvid3Cookie() = plugin(HttpSend).intercept { request ->
         request.url.encodedPath.contains("/x/player/playurl") ||
                 request.url.encodedPath.contains("/x/player/wbi/playurl")
 
-    if (!request.isAppRequest && !isPlayUrlRequest) {
-        val existing = request.headers["Cookie"] ?: ""
-        // 真实 web 端会同时带上这几个指纹 cookie，缺失时更容易触发风控
-        val extras = listOf(
+    val isOfficialWebApi = request.url.host in setOf("api.bilibili.com", "api.live.bilibili.com")
+    val isBootstrap = request.url.encodedPath == "/x/frontend/finger/spi" ||
+        request.url.encodedPath == "/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
+    if (isOfficialWebApi && !request.isAppRequest && !isPlayUrlRequest &&
+        request.attributes.getOrNull(SkipWebFingerprintCookies) != true
+    ) {
+        // Bootstrap calls use this same client; do not recursively acquire its cookie mutex.
+        if (!isBootstrap) BiliHttpApi.ensureWebCookies()
+        val managedCookies = mapOf(
             "buvid3" to BiliHttpApi.buvid3,
             "buvid4" to BiliHttpApi.buvid4,
             "b_nut" to BiliHttpApi.bNut,
             "bili_ticket" to BiliHttpApi.biliTicket
-        ).filter { (name, value) -> value.isNotBlank() && !existing.contains("$name=") }
-            .joinToString("; ") { (name, value) -> "$name=$value" }
+        ).filterValues { it.isNotBlank() }
+        val existing = request.headers["Cookie"].orEmpty().split(';')
+            .map { it.trim() }.filter { it.isNotBlank() }
+            .filter { it.substringBefore('=') !in managedCookies }.joinToString("; ")
+        if (request.headers["Referer"] == null) {
+            request.headers["Referer"] = "https://www.bilibili.com/"
+        }
+        val extras = managedCookies.entries.joinToString("; ") { (name, value) -> "$name=$value" }
 
         if (extras.isNotBlank()) {
             request.headers["Cookie"] =

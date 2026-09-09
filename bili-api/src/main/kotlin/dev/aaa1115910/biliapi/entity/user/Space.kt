@@ -1,5 +1,6 @@
 package dev.aaa1115910.biliapi.entity.user
 
+import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.http.util.smartDate
 import dev.aaa1115910.biliapi.http.util.toSmartDate
 
@@ -91,5 +92,7 @@ data class SpaceVideoPage(
     val nextWebPageSize: Int = 20,
     val nextWebPageNumber: Int = 1,
     // app
-    val lastAvid: Long = 0
+    val lastAvid: Long = 0,
+    // Keep a fallback's cursor on the same API for subsequent pages.
+    val apiType: ApiType? = null
 )

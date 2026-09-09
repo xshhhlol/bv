@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,9 @@ fun MainScreen(
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
     var selectedDrawerItem by remember { mutableStateOf(Prefs.homeLeftNaviItem) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    // 板块切走时页面会被销毁，用它把每个板块的状态（选中的 tab、列表滚动位置）存下来
+    val sectionStateHolder = rememberSaveableStateHolder()
 
     val personalFocusRequester = remember { FocusRequester() }
     val mainFocusRequester = remember { FocusRequester() }
@@ -140,13 +144,15 @@ fun MainScreen(
                     sectionContentTransform(forward = targetState.ordinal >= initialState.ordinal)
                 }
             ) { screen ->
-                when (screen) {
-                    LeftNaviItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
-                    LeftNaviItem.Personal -> PersonalContent(navFocusRequester = personalFocusRequester)
-                    LeftNaviItem.Home -> HomeContent(navFocusRequester = mainFocusRequester)
-                    LeftNaviItem.UGC -> UgcContent(navFocusRequester = ugcFocusRequester)
-                    LeftNaviItem.PGC -> PgcContent(navFocusRequester = pgcFocusRequester)
-                    else -> {}
+                sectionStateHolder.SaveableStateProvider(screen.name) {
+                    when (screen) {
+                        LeftNaviItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
+                        LeftNaviItem.Personal -> PersonalContent(navFocusRequester = personalFocusRequester)
+                        LeftNaviItem.Home -> HomeContent(navFocusRequester = mainFocusRequester)
+                        LeftNaviItem.UGC -> UgcContent(navFocusRequester = ugcFocusRequester)
+                        LeftNaviItem.PGC -> PgcContent(navFocusRequester = pgcFocusRequester)
+                        else -> {}
+                    }
                 }
             }
 

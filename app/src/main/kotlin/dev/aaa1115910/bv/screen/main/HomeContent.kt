@@ -10,6 +10,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -48,9 +51,18 @@ fun HomeContent(
 ) {
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger("HomeContent")
+    // 切走的页面会被销毁，滚动位置默认也跟着没了；用它把每个 tab 的状态存起来，
+    // 切回来还在原来的位置，不用重新往下翻
+    val tabStateHolder = rememberSaveableStateHolder()
 
     val firstTab = remember { Prefs.firstHomeTopNavItem }
-    var selectedTab by remember { mutableStateOf(firstTab) }
+    // 和 TopNav 里的选中项一起存，从别的板块切回主页时还停在原来那一栏
+    var selectedTab by rememberSaveable(
+        stateSaver = Saver(
+            save = { it.name },
+            restore = { HomeTopNavItem.valueOf(it) }
+        )
+    ) { mutableStateOf(firstTab) }
     var focusOnContent by remember { mutableStateOf(false) }
 
     val getReorderedItems: (HomeTopNavItem) -> List<HomeTopNavItem> = { item ->
@@ -63,20 +75,19 @@ fun HomeContent(
         getReorderedItems(firstTab)
     }
 
-    //启动时刷新数据
+    // 首次进来才拉数据。
+    // 这个 effect 在每次从「分区」「影视」切回主页时都会重跑一次，而 loadMore() 本身不判空，
+    // 来回切几趟就会给每个列表各追加好几页——请求白发一轮，列表还越滚越长，越用越卡。
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            recommendViewModel.loadMore()
+        if (recommendViewModel.recommendVideoList.isEmpty()) {
+            scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
         }
-        scope.launch(Dispatchers.IO) {
-            popularViewModel.loadMore()
+        if (popularViewModel.popularVideoList.isEmpty()) {
+            scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
         }
-        scope.launch(Dispatchers.IO) {
-            dynamicViewModel.loadMore()
-        }
-        scope.launch(Dispatchers.IO) {
-            userViewModel.updateUserInfo()
-        }
+        dynamicViewModel.ensureCurrentTabLoaded()
+        // 内部有 shouldUpdateInfo 节流，重复调用不会真的发请求
+        userViewModel.updateUserInfo()
     }
 
     //监听登录变化
@@ -102,11 +113,7 @@ fun HomeContent(
                     when (nav) {
                         HomeTopNavItem.Recommend -> {}
                         HomeTopNavItem.Popular -> {}
-                        HomeTopNavItem.Dynamics -> {
-                            if (!dynamicViewModel.loading && dynamicViewModel.isLogin && dynamicViewModel.dynamicList.isEmpty()) {
-                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
-                            }
-                        }
+                        HomeTopNavItem.Dynamics -> dynamicViewModel.ensureCurrentTabLoaded()
                     }
                 },
                 onClick = { nav ->
@@ -125,10 +132,7 @@ fun HomeContent(
                             scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
                         }
 
-                        HomeTopNavItem.Dynamics -> {
-                            dynamicViewModel.clearData()
-                            scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
-                        }
+                        HomeTopNavItem.Dynamics -> dynamicViewModel.refresh()
                     }
                 }
             )
@@ -152,10 +156,7 @@ fun HomeContent(
                                 scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
                             }
 
-                            HomeTopNavItem.Dynamics -> {
-                                dynamicViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
-                            }
+                            HomeTopNavItem.Dynamics -> dynamicViewModel.refresh()
                         }
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
@@ -172,10 +173,12 @@ fun HomeContent(
                     )
                 }
             ) { screen ->
-                when (screen) {
-                    HomeTopNavItem.Recommend -> RecommendScreen()
-                    HomeTopNavItem.Popular -> PopularScreen()
-                    HomeTopNavItem.Dynamics -> DynamicsScreen()
+                tabStateHolder.SaveableStateProvider(screen.name) {
+                    when (screen) {
+                        HomeTopNavItem.Recommend -> RecommendScreen()
+                        HomeTopNavItem.Popular -> PopularScreen()
+                        HomeTopNavItem.Dynamics -> DynamicsScreen()
+                    }
                 }
             }
         }

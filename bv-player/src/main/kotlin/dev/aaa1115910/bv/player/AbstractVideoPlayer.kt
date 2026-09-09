@@ -13,8 +13,17 @@ abstract class AbstractVideoPlayer {
     /** 设置请求头 */
     abstract fun setHeader(headers: Map<String, String>)
 
-    /** 设置播放地址 */
-    abstract fun playUrl(videoUrl: String? = null, audioUrl: String? = null)
+    /**
+     * 设置播放地址。
+     *
+     * [videoBackupUrls] / [audioBackupUrls] 是同一条流的备用 CDN 地址，主地址连不上时会自动换过去。
+     */
+    abstract fun playUrl(
+        videoUrl: String? = null,
+        audioUrl: String? = null,
+        videoBackupUrls: List<String> = emptyList(),
+        audioBackupUrls: List<String> = emptyList()
+    )
 
     /** 准备开始播放 */
     abstract fun prepare()

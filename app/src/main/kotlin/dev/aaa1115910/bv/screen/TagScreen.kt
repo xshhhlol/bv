@@ -32,6 +32,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videoGridColumns
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -126,7 +127,7 @@ fun TagScreen(
     ) { innerPadding ->
         TvLazyVerticalGrid(
             modifier = Modifier.padding(innerPadding),
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Fixed(videoGridColumns()),
             state = gridState,
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),

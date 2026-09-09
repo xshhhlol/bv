@@ -2,17 +2,21 @@ package dev.aaa1115910.bv.screen.settings.content
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowDropUp
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.LinearScale
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,10 +49,14 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersonalTopNavItem
+import dev.aaa1115910.bv.component.VideoGridColumnsRange
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
+import dev.aaa1115910.bv.component.settings.SettingsGroupTitle
+import dev.aaa1115910.bv.component.settings.SettingsPage
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
+import dev.aaa1115910.bv.ui.theme.BVColor
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
@@ -61,6 +69,7 @@ fun UISetting(
     val context = LocalContext.current
 
     var showDensityDialog by remember { mutableStateOf(false) }
+    var showVideoGridColumnsDialog by remember { mutableStateOf(false) }
     var showStartupPageDialog by remember { mutableStateOf(false) }
     var showHomepageDialog by remember { mutableStateOf(false) }
     var showPersonalPageDialog by remember { mutableStateOf(false) }
@@ -72,74 +81,86 @@ fun UISetting(
     var selectedLeftNavItem by remember { mutableStateOf(Prefs.homeLeftNaviItem) }
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
     var selectedFirstPersonalTopNavItem by remember { mutableStateOf(Prefs.firstPersonalTopNavItem) }
+    val videoGridColumns by Prefs.videoGridColumnsFlow.collectAsState()
 
-    Box(modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = SettingsMenuNavItem.UI.getDisplayName(context),
-                style = MaterialTheme.typography.displaySmall
+    SettingsPage(
+        modifier = modifier,
+        title = SettingsMenuNavItem.UI.getDisplayName(context),
+        subtitle = SettingsMenuNavItem.UI.getDescription(context)
+    ) {
+        item { SettingsGroupTitle(text = "打开应用时停在哪") }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_ui_startup_page_title),
+                supportText = "启动后默认进入的板块",
+                value = selectedLeftNavItem.displayName,
+                icon = Icons.Rounded.Home,
+                onClick = { showStartupPageDialog = true }
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_ui_startup_page_title),
-                        supportText = "当前：${selectedLeftNavItem.displayName}",
-                        onClick = { showStartupPageDialog = true }
-                    )
+        }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_ui_homepage_title),
+                supportText = stringResource(R.string.settings_ui_homepage_text),
+                value = selectedFirstHomeTopNavItem.getDisplayName(context),
+                icon = Icons.Rounded.Dashboard,
+                onClick = { showHomepageDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_ui_personal_page_title),
+                supportText = stringResource(R.string.settings_ui_personal_page_text),
+                value = selectedFirstPersonalTopNavItem.getDisplayName(context),
+                icon = Icons.Rounded.Person,
+                onClick = { showPersonalPageDialog = true }
+            )
+        }
+
+        item { SettingsGroupTitle(text = "布局") }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_ui_video_grid_columns_title),
+                supportText = "列数越多单个封面越小，能一屏看到的视频越多",
+                value = "每行 $videoGridColumns 个",
+                icon = Icons.Rounded.GridView,
+                onClick = { showVideoGridColumnsDialog = true }
+            )
+        }
+        item {
+            SettingListItem(
+                title = stringResource(R.string.settings_ui_density_title),
+                supportText = stringResource(R.string.settings_ui_density_text),
+                value = "%.1f".format(density),
+                icon = Icons.Rounded.FormatSize,
+                onClick = { showDensityDialog = true }
+            )
+        }
+
+        item { SettingsGroupTitle(text = "播放界面") }
+        item {
+            SettingSwitchListItem(
+                title = stringResource(R.string.settings_ui_show_video_info_title),
+                supportText = stringResource(R.string.settings_ui_show_video_info_text),
+                icon = Icons.Rounded.Info,
+                checked = showVideoInfo,
+                onCheckedChange = {
+                    showVideoInfo = it
+                    Prefs.showVideoInfo = it
                 }
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_ui_homepage_title),
-                        supportText = stringResource(R.string.settings_ui_homepage_text),
-                        onClick = { showHomepageDialog = true }
-                    )
+            )
+        }
+        item {
+            SettingSwitchListItem(
+                title = stringResource(R.string.settings_ui_show_persistent_seek_title),
+                supportText = stringResource(R.string.settings_ui_show_persistent_seek_text),
+                icon = Icons.Rounded.LinearScale,
+                checked = showPersistentSeek,
+                onCheckedChange = {
+                    showPersistentSeek = it
+                    Prefs.showPersistentSeek = it
                 }
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_ui_personal_page_title),
-                        supportText = stringResource(R.string.settings_ui_personal_page_text),
-                        onClick = { showPersonalPageDialog = true }
-                    )
-                }
-                item {
-                    SettingSwitchListItem(
-                        title = stringResource(R.string.settings_ui_show_video_info_title),
-                        supportText = stringResource(R.string.settings_ui_show_video_info_text),
-                        checked = showVideoInfo,
-                        onCheckedChange = {
-                            showVideoInfo = it
-                            Prefs.showVideoInfo = it
-                        }
-                    )
-                }
-                item {
-                    SettingSwitchListItem(
-                        title = stringResource(R.string.settings_ui_show_persistent_seek_title),
-                        supportText = stringResource(R.string.settings_ui_show_persistent_seek_text),
-                        checked = showPersistentSeek,
-                        onCheckedChange = {
-                            showPersistentSeek = it
-                            Prefs.showPersistentSeek = it
-                        }
-                    )
-                }
-                item {
-                    SettingListItem(
-                        title = stringResource(R.string.settings_ui_density_title),
-                        supportText = stringResource(R.string.settings_ui_density_text),
-                        onClick = { showDensityDialog = true }
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -150,8 +171,20 @@ fun UISetting(
         onDensityChange = { Prefs.density = it }
     )
 
+    if (showVideoGridColumnsDialog) {
+        OptionDialog(
+            title = stringResource(R.string.settings_ui_video_grid_columns_title),
+            options = VideoGridColumnsRange.toList(),
+            selectedOption = videoGridColumns,
+            onDismiss = { showVideoGridColumnsDialog = false },
+            onSelect = { Prefs.videoGridColumns = it },
+            getDisplayName = { "每行 $it 个" }
+        )
+    }
+
     if (showStartupPageDialog) {
         OptionDialog(
+            title = stringResource(R.string.settings_ui_startup_page_title),
             options = LeftNaviItem.entries.toTypedArray(),
             selectedOption = selectedLeftNavItem,
             onDismiss = { showStartupPageDialog = false },
@@ -165,6 +198,7 @@ fun UISetting(
 
     if (showHomepageDialog) {
         OptionDialog(
+            title = stringResource(R.string.settings_ui_homepage_title),
             options = HomeTopNavItem.entries.toTypedArray(),
             selectedOption = selectedFirstHomeTopNavItem,
             onDismiss = { showHomepageDialog = false },
@@ -178,6 +212,7 @@ fun UISetting(
 
     if (showPersonalPageDialog) {
         OptionDialog(
+            title = stringResource(R.string.settings_ui_personal_page_title),
             options = PersonalTopNavItem.entries.toTypedArray(),
             selectedOption = selectedFirstPersonalTopNavItem,
             onDismiss = { showPersonalPageDialog = false },
@@ -238,11 +273,33 @@ private fun UIDensityDialog(
                                 }
                                 false
                             },
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Icon(imageVector = Icons.Rounded.ArrowDropUp, contentDescription = null)
-                        Text(text = "$density")
-                        Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
+                        // 上下键调整，所以把两个箭头画在数字上下方，暗示按哪个键
+                        Icon(
+                            modifier = Modifier.size(28.dp),
+                            imageVector = Icons.Rounded.ArrowDropUp,
+                            contentDescription = null,
+                            tint = BVColor.PinkBright
+                        )
+                        Text(
+                            text = "%.1f".format(density),
+                            style = MaterialTheme.typography.displaySmall,
+                            color = BVColor.TextPrimary
+                        )
+                        Icon(
+                            modifier = Modifier.size(28.dp),
+                            imageVector = Icons.Rounded.ArrowDropDown,
+                            contentDescription = null,
+                            tint = BVColor.PinkBright
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "按上下键调整，数值越大界面越小",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = BVColor.TextTertiary
+                        )
                     }
                 },
                 confirmButton = {}

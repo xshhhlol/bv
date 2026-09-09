@@ -48,7 +48,7 @@ fun SkipTips(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(bottom = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             PlayerTip(
                 show = showPreviewTip,
@@ -97,18 +97,18 @@ fun PlayerTip(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp)
                 )
                 Text(
                     text = text,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
