@@ -204,6 +204,9 @@ object Prefs {
         restore = { PlaySpeedItem.fromCode(it) }
     )
     var showFps by pref(PrefKeys.prefShowFpsKey, false)
+
+    /** 播放器调试信息覆盖层。默认关，开着才会去拼那串信息 */
+    var showPlayerInfo by pref(PrefKeys.prefShowPlayerInfoKey, false)
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
     var playerCustomShortcuts by pref(PrefKeys.prefPlayerCustomShortcutsKey, "")
@@ -385,6 +388,7 @@ private object PrefKeys {
     // 播放器 - 界面
     val prefDefaultPlaySpeedKey = intPreferencesKey("dps")
     val prefShowFpsKey = booleanPreferencesKey("sf")
+    val prefShowPlayerInfoKey = booleanPreferencesKey("show_player_info")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefPlayerCustomShortcutsKey = stringPreferencesKey("player_custom_shortcuts")

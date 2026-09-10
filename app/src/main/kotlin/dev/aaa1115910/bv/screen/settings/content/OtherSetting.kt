@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.rounded.Api
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Cookie
+import androidx.compose.material.icons.rounded.Analytics
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +38,7 @@ fun OtherSetting(
     var showPreferedApiDialog by remember { mutableStateOf(false) }
 
     var showFps by remember { mutableStateOf(Prefs.showFps) }
+    var showPlayerInfo by remember { mutableStateOf(Prefs.showPlayerInfo) }
     var selectedApi by remember { mutableStateOf(Prefs.apiType) }
 
     SettingsPage(
@@ -85,6 +87,18 @@ fun OtherSetting(
                 onCheckedChange = {
                     showFps = it
                     Prefs.showFps = it
+                }
+            )
+        }
+        item {
+            SettingSwitchListItem(
+                title = "播放器调试信息",
+                supportText = "播放时左上角显示码率、网速、缓冲、磁盘预下载等状态；也可用控制条最右的按钮随时开关",
+                icon = Icons.Rounded.Analytics,
+                checked = showPlayerInfo,
+                onCheckedChange = {
+                    showPlayerInfo = it
+                    Prefs.showPlayerInfo = it
                 }
             )
         }

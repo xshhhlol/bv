@@ -47,6 +47,8 @@ import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.state.SubtitleState
 import dev.aaa1115910.bv.util.CodecUtil
+import android.os.SystemClock
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -93,8 +95,10 @@ private const val RETRY_RESET_DELAY_MS = 10_000L
 private fun PlayerUiState.copyKeepingError(newState: PlayerState): PlayerUiState =
     if (playerState is PlayerState.Error) this else copy(playerState = newState)
 
-@KoinViewModel
+/** 调试信息刷新间隔，不跟进度条的 10Hz 走 */
+private const val DEBUG_INFO_INTERVAL_MS = 1000L
 
+@KoinViewModel
 class VideoPlayerV3ViewModel(
     private val videoInfoRepository: VideoInfoRepository,
     private val videoPlayRepository: VideoPlayRepository
@@ -113,7 +117,10 @@ class VideoPlayerV3ViewModel(
     private var danmakuConfig = DanmakuConfig()
     private val danmakuTypeFilter = TypeFilter()
 
-    private val _uiState = MutableStateFlow(PlayerUiState())
+    private val _uiState = MutableStateFlow(
+        // debug 包默认开着，正式包看设置项，之后可以用控制条上的按钮随时开关
+        PlayerUiState(showPlayerInfo = Prefs.showPlayerInfo || BuildConfig.DEBUG)
+    )
     val uiState = _uiState.asStateFlow()
     private val _seekerState = MutableStateFlow(SeekerState())
     val seekerState = _seekerState.asStateFlow()
@@ -122,6 +129,38 @@ class VideoPlayerV3ViewModel(
     val uiEffect = _uiEffect.asSharedFlow()
 
     private var seekerUpdateJob: Job? = null
+
+    private var lastDebugInfoAt = 0L
+    private var lastDebugInfo = ""
+
+    /**
+     * 调试信息按 1 秒一刷，不跟着进度条的 10Hz 走。
+     *
+     * 一是没必要：网速本来就是 5 秒滑动平均，10Hz 重绘只会让数字一直跳，反而读不出趋势；
+     * 二是有代价：拼这串信息要查两次 SimpleCache（`getCachedBytes` 还得遍历 256 MiB 范围内的
+     * 缓存块），而那些是 synchronized 方法，等于每秒在主线程上和正在写盘的预下载线程抢 20 次锁。
+     * 覆盖层没开的话连拼都不拼。
+     */
+    private fun currentDebugInfo(player: AbstractVideoPlayer): String {
+        if (!_uiState.value.showPlayerInfo) {
+            lastDebugInfo = ""
+            return ""
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastDebugInfoAt < DEBUG_INFO_INTERVAL_MS) return lastDebugInfo
+        lastDebugInfoAt = now
+        lastDebugInfo = player.debugInfo
+        return lastDebugInfo
+    }
+
+    /** 调试覆盖层开关，控制条上的按钮可以随时翻转，翻完记回设置里 */
+    fun togglePlayerInfo() {
+        val show = !_uiState.value.showPlayerInfo
+        Prefs.showPlayerInfo = show
+        // 关掉之后连采集都停掉，不只是不显示
+        videoPlayer?.collectDebugInfo = show
+        _uiState.update { it.copy(showPlayerInfo = show) }
+    }
     private var clockUpdateJob: Job? = null
     private var heartbeatJob: Job? = null
     private var loadVideoJob: Job? = null
@@ -408,6 +447,7 @@ class VideoPlayerV3ViewModel(
         }
 
         newVideoPlayer.setPlayerEventListener(videoPlayerListener)
+        newVideoPlayer.collectDebugInfo = _uiState.value.showPlayerInfo
         videoPlayer = newVideoPlayer
     }
 
@@ -1047,18 +1087,20 @@ class VideoPlayerV3ViewModel(
         val videoItems = playData?.dashVideos?.filter { it.quality == qualityId }.orEmpty()
         val width = videoItems.maxOfOrNull { it.width } ?: 0
         val height = videoItems.maxOfOrNull { it.height } ?: 0
+        // B 站的 frameRate 是字符串，可能是 "25" 也可能是 "59.940060"
+        val frameRate = videoItems.mapNotNull { it.frameRate.toDoubleOrNull() }.maxOrNull() ?: 0.0
         // 1080p 及以下基本都能扛住，没必要为了硬解去换编码
         if (width <= 0 || height < 1440) return preferred
-        if (CodecUtil.hasHardwareDecoder(preferred.mimeType, width, height)) return preferred
+        if (CodecUtil.hasHardwareDecoder(preferred.mimeType, width, height, frameRate)) return preferred
 
         val fallback = codecList.firstOrNull {
-            it != preferred && CodecUtil.hasHardwareDecoder(it.mimeType, width, height)
+            it != preferred && CodecUtil.hasHardwareDecoder(it.mimeType, width, height, frameRate)
         }
         if (fallback == null) {
-            logger.fWarn { "No hardware decoder for ${width}x$height, keep codec $preferred" }
+            logger.fWarn { "No hardware decoder for ${width}x$height@${frameRate}fps, keep codec $preferred" }
             return preferred
         }
-        logger.fInfo { "No hardware decoder for $preferred at ${width}x$height, fallback to $fallback" }
+        logger.fInfo { "No real-time hardware decoder for $preferred at ${width}x$height@${frameRate}fps, fallback to $fallback" }
         return fallback
     }
 
@@ -1572,7 +1614,7 @@ class VideoPlayerV3ViewModel(
                 totalDuration = duration,
                 currentTime = currentPos,
                 bufferedPercentage = player.bufferedPercentage,
-                debugInfo = player.debugInfo
+                debugInfo = currentDebugInfo(player)
             )
         }
     }

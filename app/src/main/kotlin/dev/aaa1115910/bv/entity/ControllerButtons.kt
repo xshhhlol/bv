@@ -27,7 +27,8 @@ enum class ControllerButton(
     VideoDetail("videoDetail", "视频信息", R.drawable.info_24px, availableInSeason = false),
     UpSpace("upSpace", "up主页", R.drawable.contact_page_24px, availableInSeason = false),
     Related("related", "相关视频", R.drawable.related_videos_24px, availableInSeason = false),
-    PlayMode("playMode", "循环播放", R.drawable.repeat_one_24px);
+    PlayMode("playMode", "循环播放", R.drawable.repeat_one_24px),
+    PlayerInfo("playerInfo", "调试信息", R.drawable.monitoring_24px);
 
     companion object {
         fun fromId(id: String) = entries.find { it.id == id }

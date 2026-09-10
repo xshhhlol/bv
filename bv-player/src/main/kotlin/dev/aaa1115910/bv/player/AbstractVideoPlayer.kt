@@ -72,6 +72,13 @@ abstract class AbstractVideoPlayer {
     /** 调试信息 */
     abstract val debugInfo: String
 
+    /**
+     * 是否需要收集调试信息。
+     *
+     * 关掉时像网速统计这类只为 [debugInfo] 服务的采集会完全停掉，不在播放热路径上留开销。
+     */
+    open var collectDebugInfo: Boolean = false
+
     /** 视频宽度 */
     abstract val videoWidth: Int
 

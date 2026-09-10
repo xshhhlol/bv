@@ -31,7 +31,9 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import androidx.compose.ui.text.font.FontFamily
 import dev.aaa1115910.bv.BuildConfig
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.entity.Audio
@@ -86,6 +88,7 @@ fun VideoPlayerController(
     onToggleLoop: () -> Unit,
     onToggleSubtitle: () -> Unit,
     onTogglePersistentSeek: () -> Unit,
+    onTogglePlayerInfo: () -> Unit,
     onGoToUpPage: () -> Unit,
 
     //menu events
@@ -121,6 +124,7 @@ fun VideoPlayerController(
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
     var controllerInteraction by remember { mutableLongStateOf(0L) }
+
 
     // 缓冲或调整进度时暂停自动隐藏；恢复后重新给用户完整的操作时间。
     androidx.compose.runtime.LaunchedEffect(
@@ -542,20 +546,6 @@ fun VideoPlayerController(
             }
     ) {
         content()
-        if (BuildConfig.DEBUG) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(Color.Black.copy(alpha = 0.3f))
-            ) {
-                Text(
-                    modifier = Modifier.padding(8.dp),
-                    text = seekerState.value.debugInfo
-                )
-            }
-        }
         if (uiState.subtitleId != -1L) {
             val currentTime = seekerState.value.currentTime
 
@@ -645,12 +635,36 @@ fun VideoPlayerController(
             onToggleLoop = onToggleLoop,
             onGoToUpPage = onGoToUpPage,
             isPlaying = isPlaying,
+            onTogglePlayerInfo = onTogglePlayerInfo,
+            showPlayerInfo = uiState.showPlayerInfo,
             onShowEngagement = {
                 if (isPlaying) onPause()
                 showInfoSeekController = false
                 engagementAid = currentUiState.aid
             }
         )
+
+        // 画在控制条之后，否则会被顶部标题栏盖住
+        if (uiState.showPlayerInfo) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    // 亮画面上 30% 的底根本看不清字
+                    .background(Color.Black.copy(alpha = 0.65f))
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = seekerState.value.debugInfo,
+                    color = Color.White,
+                    // 左侧标签靠空格对齐，非等宽字体会错开
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
+                )
+            }
+        }
 
         VideoListController(
             show = showListController,

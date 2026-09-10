@@ -15,11 +15,21 @@ object CodecUtil {
     }
 
     /**
-     * 设备上有没有能扛下这个分辨率的硬件解码器。
+     * 设备上有没有能**实时**扛下这个分辨率和帧率的硬件解码器。
+     *
+     * 只问 `isSizeSupported` 是不够的：它只回答「这个尺寸解得了吗」，不回答「解得过来吗」。
+     * 廉价电视芯片的 H.264 硬件块通常是按 1080p 规格做的，4K 也能解，但只能跑十几帧——
+     * 它会老老实实报告支持 3840x2160，然后播放时缓冲是满的、带宽是富余的，画面却一直顿，
+     * 丢帧数一路涨。所以这里还要看厂商实测的可达帧率。
      *
      * 查不出来的时候返回 true——宁可放行也不要因为判断不了就把某个编码拦掉。
      */
-    fun hasHardwareDecoder(mimeType: String, width: Int, height: Int): Boolean = runCatching {
+    fun hasHardwareDecoder(
+        mimeType: String,
+        width: Int,
+        height: Int,
+        frameRate: Double = 0.0
+    ): Boolean = runCatching {
         MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
             .filter { !it.isEncoder }
             .filter { codecInfo ->
@@ -30,9 +40,49 @@ object CodecUtil {
                 val videoCapabilities = codecInfo
                     .getCapabilitiesForType(mimeType)
                     .videoCapabilities ?: return@any false
-                videoCapabilities.isSizeSupported(width, height)
+                if (!videoCapabilities.isSizeSupported(width, height)) return@any false
+                if (frameRate <= 0) return@any true
+                canSustain(videoCapabilities, width, height, frameRate)
             }
     }.getOrDefault(true)
+
+    /**
+     * 这个解码器能不能按内容的帧率实时解出来。
+     *
+     * [MediaCodecInfo.VideoCapabilities.areSizeAndRateSupported] 是能力声明，
+     * [MediaCodecInfo.VideoCapabilities.getAchievableFrameRatesFor] 是厂商实测值，后者才反映真实性能。
+     * 实测值拿不到（很多设备没提供）时只用能力声明，不因为查不到就判死。
+     */
+    private fun canSustain(
+        capabilities: MediaCodecInfo.VideoCapabilities,
+        width: Int,
+        height: Int,
+        frameRate: Double
+    ): Boolean {
+        if (!runCatching { capabilities.areSizeAndRateSupported(width, height, frameRate) }
+                .getOrDefault(true)
+        ) return false
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val achievable = runCatching { capabilities.getAchievableFrameRatesFor(width, height) }
+            .getOrNull() ?: return true
+        // 留 10% 余量：卡在临界点上的解码器实际播放时一样会掉帧
+        return achievable.upper >= frameRate * 0.9
+    }
+
+    /** 调试用：厂商实测这个解码器在该分辨率下能跑多少帧 */
+    fun achievableFrameRate(mimeType: String, width: Int, height: Int): Double? = runCatching {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+            .filter { !it.isEncoder }
+            .filter { info -> info.supportedTypes.any { it.equals(mimeType, ignoreCase = true) } }
+            .filter { CodecMode.fromMediaCodecInfo(it) == CodecMode.Hardware }
+            .mapNotNull { info ->
+                info.getCapabilitiesForType(mimeType).videoCapabilities
+                    ?.getAchievableFrameRatesFor(width, height)?.upper
+            }
+            .maxOrNull()
+    }.getOrNull()
 }
 
 data class CodecInfoData(

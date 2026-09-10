@@ -180,6 +180,7 @@ fun VideoPlayerV3Screen(
             showPersistentSeek = !showPersistentSeek
             Prefs.showPersistentSeek = showPersistentSeek
         },
+        onTogglePlayerInfo = { playerViewModel.togglePlayerInfo() },
         onGoToUpPage = {
             val current = playerViewModel.uiState.value
             if (current.authorMid != 0L) {

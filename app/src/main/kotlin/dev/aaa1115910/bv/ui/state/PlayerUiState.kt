@@ -80,6 +80,9 @@ data class PlayerUiState(
     val subtitleId: Long = -1L,
     val subtitleData: List<SubtitleItem> = emptyList(),
     val subtitleList: List<Subtitle> = emptyList(),
+
+    /** 调试信息覆盖层是否显示，控制条上的按钮直接翻转它 */
+    val showPlayerInfo: Boolean = false,
 )
 
 // 2. 播放器进度条状态 (高频更新)

@@ -115,6 +115,8 @@ fun ControllerVideoInfo(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
     onShowEngagement: () -> Unit = {},
+    onTogglePlayerInfo: () -> Unit = {},
+    showPlayerInfo: Boolean = false,
     isPlaying: Boolean = false
 ) {
     Box(
@@ -168,6 +170,8 @@ fun ControllerVideoInfo(
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage,
                 onShowEngagement = onShowEngagement,
+                onTogglePlayerInfo = onTogglePlayerInfo,
+                showPlayerInfo = showPlayerInfo,
                 isPlaying = isPlaying
             )
         }
@@ -324,6 +328,8 @@ fun ControllerVideoInfoBottom(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
     onShowEngagement: () -> Unit = {},
+    onTogglePlayerInfo: () -> Unit = {},
+    showPlayerInfo: Boolean = false,
     isPlaying: Boolean = false
 ) {
     val seekFocusRequester = remember { FocusRequester() }
@@ -437,6 +443,7 @@ fun ControllerVideoInfoBottom(
                 ControllerButton.UpSpace -> onGoToUpPage
                 ControllerButton.Related -> onShowRelatedVideos
                 ControllerButton.PlayMode -> onToggleLoop
+                ControllerButton.PlayerInfo -> onTogglePlayerInfo
             }
         }
 
@@ -473,6 +480,7 @@ fun ControllerVideoInfoBottom(
                     ControllerButton.UpSpace -> Icons.Rounded.AccountCircle
                     ControllerButton.Related -> Icons.Rounded.VideoLibrary
                     ControllerButton.PlayMode -> if (isLooping) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat
+                    ControllerButton.PlayerInfo -> Icons.Rounded.Analytics
                 }
                 val label = when (button) {
                     ControllerButton.PlayPause -> if (isPlaying) "暂停" else "播放"
@@ -484,9 +492,11 @@ fun ControllerVideoInfoBottom(
                     ControllerButton.UpSpace -> "UP 主页"
                     ControllerButton.Related -> "相关推荐"
                     ControllerButton.PlayMode -> if (isLooping) "循环：开" else "循环：关"
+                    ControllerButton.PlayerInfo -> if (showPlayerInfo) "隐藏调试信息" else "显示调试信息"
                 }
                 val active = (button == ControllerButton.Danmaku && danmakuEnabled) ||
-                    (button == ControllerButton.PlayMode && isLooping)
+                    (button == ControllerButton.PlayMode && isLooping) ||
+                    (button == ControllerButton.PlayerInfo && showPlayerInfo)
                 PlayerControlButton(
                     modifier = if (index == defaultFocusIndex) Modifier.focusRequester(buttonsFocusRequester) else Modifier,
                     icon = icon,
