@@ -172,17 +172,26 @@ fun HttpClient.injectBuvid3Cookie() = plugin(HttpSend).intercept { request ->
     ) {
         // Bootstrap calls use this same client; do not recursively acquire its cookie mutex.
         if (!isBootstrap) BiliHttpApi.ensureWebCookies()
+
+        // Web 写请求的 Cookie 与表单使用同一份 CSRF 凭据。
+        // -401 并不等同于 CSRF 校验失败，不能仅凭这个错误判断 Cookie 缺失。
+        val csrfInBody = (request.body as? FormDataContent)?.formData?.get("csrf")
         val managedCookies = mapOf(
             "buvid3" to BiliHttpApi.buvid3,
             "buvid4" to BiliHttpApi.buvid4,
             "b_nut" to BiliHttpApi.bNut,
-            "bili_ticket" to BiliHttpApi.biliTicket
+            "bili_ticket" to BiliHttpApi.biliTicket,
+            "bili_jct" to csrfInBody.orEmpty()
         ).filterValues { it.isNotBlank() }
         val existing = request.headers["Cookie"].orEmpty().split(';')
             .map { it.trim() }.filter { it.isNotBlank() }
             .filter { it.substringBefore('=') !in managedCookies }.joinToString("; ")
         if (request.headers["Referer"] == null) {
             request.headers["Referer"] = "https://www.bilibili.com/"
+        }
+        // 为 Web 写请求补齐来源信息。
+        if (request.method == HttpMethod.Post && request.headers["Origin"] == null) {
+            request.headers["Origin"] = "https://www.bilibili.com"
         }
         val extras = managedCookies.entries.joinToString("; ") { (name, value) -> "$name=$value" }
 

@@ -120,7 +120,17 @@ fun VideoPlayerController(
     var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
-    var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
+    var controllerInteraction by remember { mutableLongStateOf(0L) }
+
+    // 缓冲或调整进度时暂停自动隐藏；恢复后重新给用户完整的操作时间。
+    androidx.compose.runtime.LaunchedEffect(
+        showInfoSeekController, isSeeking, uiState.isBuffering, controllerInteraction
+    ) {
+        if (showInfoSeekController && !isSeeking && !uiState.isBuffering) {
+            delay(5000)
+            showInfoSeekController = false
+        }
+    }
     val customShortcutToggleMemory = remember { PlayerCustomShortcutToggleMemory() }
 
     fun calCoefficient(): Int {
@@ -159,18 +169,21 @@ fun VideoPlayerController(
             if (!isPlaying) onPlay()
 
             isSeeking = false
-            showInfoSeekController = false
-            hideInfoSeekControllerCountdown?.cancel()
+            controllerInteraction++
         }
     }
 
     fun onDirectionLeft() {
+        showInfoSeekController = true
+        controllerInteraction++
         if (!isSeeking) goTime = seekerState.value.currentTime
         onTimeBack()
         startSeekCountdown()
     }
 
     fun onDirectionRight() {
+        showInfoSeekController = true
+        controllerInteraction++
         if (!isSeeking) goTime = seekerState.value.currentTime
         onTimeForward()
         startSeekCountdown()
@@ -180,7 +193,8 @@ fun VideoPlayerController(
         onGoTime(goTime)
         isSeeking = false
         if (!isPlaying) onPlay()
-        showInfoSeekController = false
+        showInfoSeekController = true
+        controllerInteraction++
         seekCountdown?.cancel()
     }
 
@@ -521,14 +535,8 @@ fun VideoPlayerController(
             .background(Color.Black)
             .focusable()
             .onPreviewKeyEvent { event ->
-                // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
-                if (showInfoSeekController) {
-                    hideInfoSeekControllerCountdown?.cancel()
-                    hideInfoSeekControllerCountdown = scope.launch {
-                        delay(5000)
-                        showInfoSeekController = false
-                    }
-                }
+                // 只记录操作；计时由上面的 effect 管理，缓冲期间不会误隐藏控制栏。
+                controllerInteraction++
                 // 调用分离出去的处理函数
                 handleKeyEvent(event)
             }

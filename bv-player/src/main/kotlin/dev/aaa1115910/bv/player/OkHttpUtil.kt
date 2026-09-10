@@ -15,8 +15,8 @@ object OkHttpUtil {
     /** 连不上就赶紧换下一个 CDN，没必要在一个坏节点上干等 */
     private const val ConnectTimeoutSeconds = 6L
 
-    /** 4K 码率高，单次读取的时间给宽裕点，免得网络抖一下就当成失败 */
-    private const val ReadTimeoutSeconds = 20L
+    /** 单次读取无数据的超时，不是整段 4K 视频下载的总时长。 */
+    private const val ReadTimeoutSeconds = 8L
 
     fun generateCustomSslOkHttpClient(context: Context): OkHttpClient {
         val certificateFactory = CertificateFactory.getInstance("X.509")

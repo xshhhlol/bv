@@ -510,7 +510,9 @@ class VideoPlayerV3ViewModel(
                     videoUrl = mediaUrls.videoUrl,
                     audioUrl = mediaUrls.audioUrl,
                     videoBackupUrls = mediaUrls.videoBackupUrls,
-                    audioBackupUrls = mediaUrls.audioBackupUrls
+                    audioBackupUrls = mediaUrls.audioBackupUrls,
+                    videoBitrate = mediaUrls.videoBitrate,
+                    audioBitrate = mediaUrls.audioBitrate
                 )
                 player.prepare()
                 if (currentPosition > 0) {
@@ -1142,7 +1144,9 @@ class VideoPlayerV3ViewModel(
             videoUrl = videoUrl,
             audioUrl = audioUrl,
             videoBackupUrls = orderedVideoUrls.drop(1),
-            audioBackupUrls = orderedAudioUrls.drop(1)
+            audioBackupUrls = orderedAudioUrls.drop(1),
+            videoBitrate = actualVideoItem.bandwidth,
+            audioBitrate = audioItem?.bandwidth ?: 0
         )
     }
 
@@ -1157,7 +1161,9 @@ class VideoPlayerV3ViewModel(
             videoUrl = mediaUrls.videoUrl,
             audioUrl = mediaUrls.audioUrl,
             videoBackupUrls = mediaUrls.videoBackupUrls,
-            audioBackupUrls = mediaUrls.audioBackupUrls
+            audioBackupUrls = mediaUrls.audioBackupUrls,
+            videoBitrate = mediaUrls.videoBitrate,
+            audioBitrate = mediaUrls.audioBitrate
         )
         player.prepare()
         player.start()
@@ -1646,7 +1652,9 @@ class VideoPlayerV3ViewModel(
         val audioUrl: String?,
         /** 同一条流的备用 CDN 地址，主地址连不上时播放器会自动换过去 */
         val videoBackupUrls: List<String> = emptyList(),
-        val audioBackupUrls: List<String> = emptyList()
+        val audioBackupUrls: List<String> = emptyList(),
+        val videoBitrate: Int = 0,
+        val audioBitrate: Int = 0
     )
 }
 

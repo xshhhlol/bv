@@ -66,6 +66,8 @@ class UserRepository(
         Prefs.accessToken = authData.accessToken
         Prefs.refreshToken = authData.refreshToken
 
+        // 先同步新凭据，避免刚登录/切换账号时把旧的内存凭据写回 API 层。
+        reloadFromPrefs()
         updateAuthRepository()
     }
 
@@ -120,7 +122,6 @@ class UserRepository(
 
     suspend fun setUser(user: UserDB) {
         saveToPrefs(AuthData.fromJson(user.auth))
-        reloadFromPrefs()
         BVApp.instance?.initRepository()
         BVApp.instance?.initProxy()
         updateAvatar()
@@ -141,7 +142,6 @@ class UserRepository(
             db.userDao().insert(newUser)
         }
         saveToPrefs(authData)
-        reloadFromPrefs()
         BVApp.instance?.initRepository()
         BVApp.instance?.initProxy()
         updateAvatar()

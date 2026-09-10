@@ -7,7 +7,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -29,25 +28,11 @@ import dev.aaa1115910.bv.player.OkHttpUtil
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
 
-/**
- * 缓冲策略。
- *
- * 默认值（50s / 50s，起播 1s，卡顿恢复 2s）是按手机上的一般码率定的，放到电视上看 4K 有两个毛病：
- * 一是卡顿之后只缓冲 2 秒就接着播，网络稍微再抖一下立刻又卡，来回卡比一次多等两秒难受得多；
- * 二是 ExoPlayer 默认的字节上限（视频 125MB）对 4K 来说是真会顶到的，而缓冲区是实打实占 Java 堆的，
- * 顶到上限附近容易引发频繁 GC，反而更卡。所以这里把时间放宽、把字节上限收到一个明确的数。
- */
-private const val MinBufferMs = 30_000
-private const val MaxBufferMs = 120_000
-
 /** 起播前先攒这么多，太大起播慢，太小容易刚播就卡 */
 private const val BufferForPlaybackMs = 1_500
 
 /** 卡顿恢复后多攒一点再接着播，避免「卡一下播一下」 */
 private const val BufferForPlaybackAfterRebufferMs = 4_000
-
-/** 缓冲区占用的内存上限。4K 大约 25Mbps，这个量差不多能顶 30 秒 */
-private const val TargetBufferBytes = 96 * 1024 * 1024
 
 /** 单个分片加载失败后的重试次数，配合 [FallbackUrlDataSource] 一起换 CDN */
 private const val LoadRetryCount = 5
@@ -59,6 +44,10 @@ class ExoMediaPlayer(
 ) : AbstractVideoPlayer(), Player.Listener {
     var mPlayer: ExoPlayer? = null
     protected var mMediaSource: MediaSource? = null
+
+    private val targetBufferBytes = PlaybackBufferPolicy.targetBytes(Runtime.getRuntime().maxMemory())
+    @Volatile private var playbackSpeed = 1f
+    private val streamFactories = mutableListOf<FallbackUrlDataSource.Factory>()
 
     private val bandwidthMeter = DefaultBandwidthMeter.getSingletonInstance(context)
     private var videoDecoderName: String? = null
@@ -126,12 +115,12 @@ class ExoMediaPlayer(
     private fun buildLoadControl(): LoadControl = DefaultLoadControl.Builder()
         .setAllocator(DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
         .setBufferDurationsMs(
-            MinBufferMs,
-            MaxBufferMs,
+            PlaybackBufferPolicy.MIN_BUFFER_MS,
+            PlaybackBufferPolicy.MAX_BUFFER_MS,
             BufferForPlaybackMs,
             BufferForPlaybackAfterRebufferMs
         )
-        .setTargetBufferBytes(TargetBufferBytes)
+        .setTargetBufferBytes(targetBufferBytes)
         // 字节上限优先，省得高码率视频把内存吃穿
         .setPrioritizeTimeOverSizeThresholds(false)
         .build()
@@ -169,16 +158,19 @@ class ExoMediaPlayer(
         videoUrl: String?,
         audioUrl: String?,
         videoBackupUrls: List<String>,
-        audioBackupUrls: List<String>
+        audioBackupUrls: List<String>,
+        videoBitrate: Int,
+        audioBitrate: Int
     ) {
+        streamFactories.clear()
         videoDecoderName = null
         audioDecoderName = null
 
         val videoMediaSource = videoUrl?.let {
-            createMediaSource(it, videoBackupUrls)
+            createMediaSource(it, videoBackupUrls, videoBitrate)
         }
         val audioMediaSource = audioUrl?.let {
-            createMediaSource(it, audioBackupUrls)
+            createMediaSource(it, audioBackupUrls, audioBitrate)
         }
 
         val mediaSources = listOfNotNull(videoMediaSource, audioMediaSource)
@@ -186,12 +178,12 @@ class ExoMediaPlayer(
     }
 
     @OptIn(UnstableApi::class)
-    private fun createMediaSource(url: String, backupUrls: List<String>): MediaSource {
-        val factory: DataSource.Factory = if (backupUrls.isEmpty()) {
-            dataSourceFactory
-        } else {
-            FallbackUrlDataSource.Factory(dataSourceFactory, listOf(url) + backupUrls)
-        }
+    private fun createMediaSource(url: String, backupUrls: List<String>, bitrate: Int): MediaSource {
+        val factory = FallbackUrlDataSource.Factory(
+            dataSourceFactory, listOf(url) + backupUrls,
+            requiredBitrate = { (bitrate.toLong() * playbackSpeed).toLong() }
+        )
+        streamFactories.add(factory)
         return ProgressiveMediaSource.Factory(factory)
             .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(LoadRetryCount))
             .createMediaSource(MediaItem.fromUri(url))
@@ -244,6 +236,7 @@ class ExoMediaPlayer(
     override var speed: Float
         get() = mPlayer?.playbackParameters?.speed ?: 1f
         set(value) {
+            playbackSpeed = value
             mPlayer?.setPlaybackSpeed(value)
         }
 
@@ -299,7 +292,9 @@ class ExoMediaPlayer(
                 player: ${androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY}
                 time: ${currentPosition.formatMinSec()} / ${duration.formatMinSec()}
                 buffered: $bufferedPercentage% (${bufferedSeconds}s)
-                network: ${tcpSpeed / 1000} kbps
+                buffer budget: ${targetBufferBytes / 1024 / 1024} MiB (target 120–180s)
+                CDN: ${streamFactories.joinToString { it.currentHost }}
+                network estimate: ${tcpSpeed / 1000} kbps
                 resolution: ${mPlayer?.videoSize?.width} x ${mPlayer?.videoSize?.height}
                 audio: ${mPlayer?.audioFormat?.bitrate ?: 0} kbps
                 video codec: ${mPlayer?.videoFormat?.sampleMimeType ?: "null"} (${videoDecoderName ?: "unknown"})

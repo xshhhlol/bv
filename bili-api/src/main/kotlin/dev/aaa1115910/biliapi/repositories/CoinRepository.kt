@@ -12,7 +12,8 @@ class CoinRepository(private val authRepository: AuthRepository) {
         val like = BiliHttpApi.checkVideoSentCoin(
             avid = aid,
             bvid = bvid,
-            sessData = authRepository.sessionData!!
+            sessData = authRepository.sessionData.orEmpty(),
+            accessKey = authRepository.accessToken
         )
         return like
     }
@@ -22,13 +23,16 @@ class CoinRepository(private val authRepository: AuthRepository) {
         bvid: String? = null,
         multiply: Int = 1,
     ) {
+        // 覆盖安装保留的 Web Cookie 可能过期；App 登录直接使用其 access_token，
+        // 不再因旧 SESSDATA / bili_jct / buvid3 拦住本来有效的 App 投币请求。
         val (success, message) = BiliHttpApi.sendVideoCoin(
             avid = aid,
             bvid = bvid,
             multiply = multiply,
-            csrf = authRepository.biliJct ?: "",
-            sessData = authRepository.sessionData!!,
-            buvid3 = authRepository.buvid3!!,
+            csrf = authRepository.biliJct.orEmpty(),
+            sessData = authRepository.sessionData.orEmpty(),
+            buvid3 = authRepository.buvid3,
+            accessKey = authRepository.accessToken,
         )
         if (!success) throw Exception("投币失败：$message")
     }

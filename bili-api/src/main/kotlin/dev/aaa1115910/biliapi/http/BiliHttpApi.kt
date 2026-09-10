@@ -48,7 +48,6 @@ import dev.aaa1115910.biliapi.http.entity.user.favorite.FavoriteItemIdListRespon
 import dev.aaa1115910.biliapi.http.entity.user.favorite.UserFavoriteFoldersData
 import dev.aaa1115910.biliapi.http.entity.user.garb.Equip
 import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
-import dev.aaa1115910.biliapi.http.entity.video.AddCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckSentCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckVideoFavoured
 import dev.aaa1115910.biliapi.http.entity.video.OneClickTripleAction
@@ -69,6 +68,7 @@ import dev.aaa1115910.biliapi.http.entity.video.VideoOnlineCount
 import dev.aaa1115910.biliapi.http.entity.video.VideoShot
 import dev.aaa1115910.biliapi.http.entity.web.NavResponseData
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
+import dev.aaa1115910.biliapi.http.util.submitVideoCoin
 import dev.aaa1115910.biliapi.http.util.BiliAppConf
 import dev.aaa1115910.biliapi.http.util.skipWebFingerprintCookies
 import dev.aaa1115910.biliapi.http.util.encApiSign
@@ -978,7 +978,7 @@ object BiliHttpApi {
     }
 
     /**
-     * 为视频[avid]或[bvid]点赞或取消赞
+     * 为视频[avid]或[bvid]投币；存在 App 凭据时优先使用 App 接口。
      *
      * @param like 是否顺便点赞
      * @param multiply 投币数量
@@ -992,23 +992,11 @@ object BiliHttpApi {
         like: Boolean = false,
         csrf: String,
         sessData: String,
-        buvid3: String
-    ): Pair<Boolean, String> {
-        require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
-        val response = client.post("/x/web-interface/coin/add") {
-            setBody(FormDataContent(
-                Parameters.build {
-                    avid?.let { append("aid", "$it") }
-                    bvid?.let { append("bvid", it) }
-                    append("multiply", "$multiply")
-                    append("select_like", "${if (like) 1 else 0}")
-                    append("csrf", csrf)
-                }
-            ))
-            header("Cookie", "SESSDATA=$sessData;buvid3=$buvid3")
-        }.body<BiliResponse<AddCoin>>()
-        return Pair(response.code == 0, response.message)
-    }
+        buvid3: String? = null,
+        accessKey: String? = null
+    ): Pair<Boolean, String> = client.submitVideoCoin(
+        avid, bvid, multiply, like, csrf, sessData, buvid3, accessKey
+    )
 
     /**
      * 检查视频[avid]或[bvid]是否已投币
@@ -1016,17 +1004,17 @@ object BiliHttpApi {
     suspend fun checkVideoSentCoin(
         avid: Long? = null,
         bvid: String? = null,
-        sessData: String
+        sessData: String,
+        accessKey: String? = null
     ): Boolean {
         val response = client.get("/x/web-interface/archive/coins") {
             require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
             avid?.let { parameter("aid", it) }
             bvid?.let { parameter("bvid", it) }
-            header("Cookie", "SESSDATA=$sessData;")
+            if (!accessKey.isNullOrBlank()) parameter("access_key", accessKey)
+            else header("Cookie", "SESSDATA=$sessData;")
         }.body<BiliResponse<CheckSentCoin>>()
-        return runCatching {
-            response.getResponseData().multiply != 0
-        }.getOrDefault(false)
+        return response.getResponseData().multiply != 0
     }
 
     /**

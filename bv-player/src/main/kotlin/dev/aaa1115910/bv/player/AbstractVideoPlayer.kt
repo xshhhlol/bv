@@ -22,7 +22,9 @@ abstract class AbstractVideoPlayer {
         videoUrl: String? = null,
         audioUrl: String? = null,
         videoBackupUrls: List<String> = emptyList(),
-        audioBackupUrls: List<String> = emptyList()
+        audioBackupUrls: List<String> = emptyList(),
+        videoBitrate: Int = 0,
+        audioBitrate: Int = 0
     )
 
     /** 准备开始播放 */

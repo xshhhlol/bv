@@ -1,5 +1,22 @@
 package dev.aaa1115910.bv.component.controllers
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.Paid
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Surface
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Border
+import androidx.tv.material3.Icon
+import dev.aaa1115910.bv.ui.theme.BVColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -93,40 +110,53 @@ fun VideoEngagementDialog(
             LazyColumn(state = listState, modifier = listModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (page == "actions") {
                     item {
-                        Button(
-                            modifier = Modifier.fillMaxWidth().focusRequester(focus), enabled = !busy,
-                            onClick = { runAction {
-                                val current = liked ?: withContext(Dispatchers.IO) { likes.checkVideoLiked(aid) }
-                                withContext(Dispatchers.IO) { likes.updateVideoLiked(aid = aid, like = !current) }
-                                liked = !current
-                                (if (current) "已取消点赞" else "点赞成功").toast(context)
-                            } }
-                        ) { Text(if (liked == true) "取消点赞" else "点赞") }
-                    }
-                    item {
-                        Button(modifier = Modifier.fillMaxWidth(), enabled = !busy,
-                            onClick = { if (Prefs.isLogin) page = "coin" else "请先登录".toast(context) }
-                        ) { Text("投币") }
-                    }
-                    item {
-                        Button(modifier = Modifier.fillMaxWidth(), enabled = !busy, onClick = { runAction {
-                            folders = withContext(Dispatchers.IO) {
-                                favorites.getAllFavoriteFolderMetadataList(Prefs.uid, rid = aid, preferApiType = Prefs.apiType)
-                            }
-                            selected = folders.filter { it.videoInThisFav }.map { it.id }.toSet()
-                            page = "favorite"
-                        } }) { Text("收藏") }
+                        Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            EngagementAction(
+                                modifier = Modifier.weight(1f).focusRequester(focus),
+                                icon = Icons.Rounded.ThumbUp,
+                                title = if (liked == true) "取消点赞" else "点赞",
+                                accent = BVColor.PinkBright,
+                                enabled = !busy,
+                                onClick = { runAction {
+                                    val current = liked ?: withContext(Dispatchers.IO) { likes.checkVideoLiked(aid) }
+                                    withContext(Dispatchers.IO) { likes.updateVideoLiked(aid = aid, like = !current) }
+                                    liked = !current
+                                    (if (current) "已取消点赞" else "点赞成功").toast(context)
+                                } }
+                            )
+                            EngagementAction(
+                                modifier = Modifier.weight(1f), icon = Icons.Rounded.Paid,
+                                title = "投币", accent = Color(0xFFF3C56B), enabled = !busy,
+                                onClick = { if (Prefs.isLogin) page = "coin" else "请先登录".toast(context) }
+                            )
+                            EngagementAction(
+                                modifier = Modifier.weight(1f), icon = Icons.Rounded.Star,
+                                title = "收藏", accent = BVColor.Cyan, enabled = !busy,
+                                onClick = { runAction {
+                                    folders = withContext(Dispatchers.IO) {
+                                        favorites.getAllFavoriteFolderMetadataList(Prefs.uid, rid = aid, preferApiType = Prefs.apiType)
+                                    }
+                                    selected = folders.filter { it.videoInThisFav }.map { it.id }.toSet()
+                                    page = "favorite"
+                                } }
+                            )
+                        }
                     }
                 } else if (page == "coin") {
-                    items(listOf(1, 2)) { count ->
-                        Button(
-                            modifier = Modifier.fillMaxWidth().then(if (count == 1) Modifier.focusRequester(focus) else Modifier),
-                            enabled = !busy, onClick = { runAction {
-                                withContext(Dispatchers.IO) { coins.sendVideoCoin(aid = aid, multiply = count) }
-                                "投币成功".toast(context)
-                                page = "actions"
-                            } }
-                        ) { Text("投 $count 枚硬币") }
+                    item {
+                        Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            listOf(1, 2).forEach { count ->
+                                EngagementAction(
+                                    modifier = Modifier.weight(1f).then(if (count == 1) Modifier.focusRequester(focus) else Modifier),
+                                    icon = Icons.Rounded.Paid, title = "投 $count 枚", accent = Color(0xFFF3C56B),
+                                    enabled = !busy, onClick = { runAction {
+                                        withContext(Dispatchers.IO) { coins.sendVideoCoin(aid = aid, multiply = count) }
+                                        "投币成功".toast(context)
+                                        page = "actions"
+                                    } }
+                                )
+                            }
+                        }
                     }
                 } else {
                     if (folders.isEmpty()) item { Text("暂无收藏夹，请先创建收藏夹") }
@@ -155,11 +185,51 @@ fun VideoEngagementDialog(
                     }
                 }
                 item {
-                    Button(modifier = Modifier.fillMaxWidth(), enabled = !busy,
+                    Button(modifier = Modifier.padding(top = 4.dp), enabled = !busy,
                         onClick = { if (page == "actions") onDismiss() else page = "actions" }
                     ) { Text(if (page == "actions") "关闭" else "返回") }
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun EngagementAction(
+    modifier: Modifier,
+    icon: ImageVector,
+    title: String,
+    accent: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        enabled = enabled,
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = accent.copy(alpha = 0.07f),
+            contentColor = Color.White,
+            focusedContainerColor = accent.copy(alpha = 0.16f),
+            focusedContentColor = Color.White,
+            pressedContainerColor = accent.copy(alpha = 0.25f),
+            pressedContentColor = Color.White
+        ),
+        border = ClickableSurfaceDefaults.border(
+            border = Border.None,
+            focusedBorder = Border(BorderStroke(1.dp, accent.copy(alpha = 0.8f)))
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f, pressedScale = 0.98f)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = if (enabled) accent else accent.copy(alpha = 0.35f))
+            Text(title, fontSize = 14.sp)
         }
     }
 }

@@ -21,7 +21,9 @@ import java.io.IOException
 class FallbackUrlDataSource(
     private val upstreamFactory: DataSource.Factory,
     private val urls: List<Uri>,
-    private val preferredIndexHolder: PreferredIndexHolder
+    private val preferredIndexHolder: PreferredIndexHolder,
+    private val requiredBitrate: () -> Long = { 0 },
+    private val nanoTime: () -> Long = System::nanoTime
 ) : DataSource {
     companion object {
         private const val TAG = "FallbackUrlDataSource"
@@ -31,6 +33,16 @@ class FallbackUrlDataSource(
     class PreferredIndexHolder {
         @Volatile
         var index: Int = 0
+
+        private var lastSlowSwitchNanos: Long? = null
+
+        @Synchronized
+        fun allowSlowSwitch(nowNanos: Long): Boolean {
+            val last = lastSlowSwitchNanos
+            if (last != null && nowNanos - last < 30_000_000_000L) return false
+            lastSlowSwitchNanos = nowNanos
+            return true
+        }
     }
 
     private val transferListeners = mutableListOf<TransferListener>()
@@ -43,6 +55,9 @@ class FallbackUrlDataSource(
 
     /** 本次 open 之后已经读出去的字节数 */
     private var bytesRead = 0L
+    private var expectedLength = -1L
+    private val slowReadMonitor = SlowReadMonitor()
+    private var switchBeforeNextRead = false
 
     override fun addTransferListener(transferListener: TransferListener) {
         transferListeners.add(transferListener)
@@ -52,7 +67,10 @@ class FallbackUrlDataSource(
         close()
         openedSpec = dataSpec
         bytesRead = 0L
-        return openFrom(dataSpec, buildCandidates(dataSpec.uri))
+        slowReadMonitor.reset()
+        switchBeforeNextRead = false
+        expectedLength = openFrom(dataSpec, buildCandidates(dataSpec.uri))
+        return expectedLength
     }
 
     /** 按给定顺序挨个试着打开，第一个能开的就留下 */
@@ -72,7 +90,7 @@ class FallbackUrlDataSource(
             } catch (e: IOException) {
                 lastError = e
                 runCatching { source.close() }
-                Log.w(TAG, "Open [$uri] failed: ${e.message}, try next cdn")
+                Log.w(TAG, "Open [${uri.host}] failed: ${e.javaClass.simpleName}, try next cdn")
             }
         }
 
@@ -88,13 +106,64 @@ class FallbackUrlDataSource(
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        if (length == 0) return 0
+        if (expectedLength >= 0 && bytesRead >= expectedLength) return -1
+        if (switchBeforeNextRead) {
+            switchBeforeNextRead = false
+            if (preferredIndexHolder.allowSlowSwitch(nanoTime())) {
+                tryFasterCdn(buffer, offset, length)?.let { return it }
+            }
+        }
         val source = currentSource ?: throw IOException("DataSource is not opened")
         return try {
-            source.read(buffer, offset, length).also { if (it > 0) bytesRead += it }
+            val start = nanoTime()
+            val count = readChecked(source, buffer, offset, length)
+            if (count > 0) {
+                bytesRead += count
+                switchBeforeNextRead = urls.size > 1 &&
+                    slowReadMonitor.record(count, nanoTime() - start, requiredBitrate())
+            }
+            count
         } catch (e: IOException) {
             // 能连上但读一半卡死/断开的节点最难受：抛给上层重试的话，preferredIndex 还指着它，
             // 下次照样从这儿开始。这里直接换个节点，从已经读到的位置续上
             readFromNextCdn(buffer, offset, length, e)
+        }
+    }
+
+    private fun readChecked(source: DataSource, buffer: ByteArray, offset: Int, length: Int): Int {
+        val count = source.read(buffer, offset, length)
+        if (count == -1 && expectedLength >= 0 && bytesRead < expectedLength) {
+            throw IOException("Unexpected EOF at $bytesRead of $expectedLength bytes")
+        }
+        return count
+    }
+
+    /** 低速但仍可读时只探测一个备选；备选失败继续旧连接，不制造一次新的播放错误。 */
+    private fun tryFasterCdn(buffer: ByteArray, offset: Int, length: Int): Int? {
+        val spec = openedSpec ?: return null
+        val oldSource = currentSource ?: return null
+        val oldIndex = currentIndex
+        val oldUri = currentUri
+        val candidate = buildCandidates(spec.uri).firstOrNull { it.first != oldIndex } ?: return null
+        val resumeSpec = if (bytesRead > 0) spec.subrange(bytesRead) else spec
+        try {
+            openFrom(resumeSpec, listOf(candidate))
+            val count = readChecked(currentSource!!, buffer, offset, length)
+            if (count <= 0) throw IOException("No data from alternate CDN")
+            bytesRead += count
+            runCatching { oldSource.close() }
+            Log.i(TAG, "Slow CDN ${oldUri?.host} -> ${candidate.second.host}, resumed at ${resumeSpec.position}")
+            return count
+        } catch (_: IOException) {
+            if (currentSource !== oldSource) runCatching { currentSource?.close() }
+            currentSource = oldSource
+            currentUri = oldUri
+            currentIndex = oldIndex
+            preferredIndexHolder.index = oldIndex
+            return null
+        } finally {
+            slowReadMonitor.reset()
         }
     }
 
@@ -108,7 +177,8 @@ class FallbackUrlDataSource(
         val spec = openedSpec ?: throw cause
         if (urls.size < 2) throw cause
 
-        Log.w(TAG, "Read [$currentUri] failed at $bytesRead bytes: ${cause.message}, switch cdn")
+        Log.w(TAG, "Read [${currentUri?.host}] failed at $bytesRead bytes: ${cause.javaClass.simpleName}, switch cdn")
+        slowReadMonitor.reset()
         runCatching { currentSource?.close() }
         currentSource = null
 
@@ -121,9 +191,9 @@ class FallbackUrlDataSource(
             if (runCatching { openFrom(resumeSpec, listOf(candidate)) }.isFailure) return@forEach
             val source = currentSource ?: return@forEach
             try {
-                return source.read(buffer, offset, length).also { if (it > 0) bytesRead += it }
+                return readChecked(source, buffer, offset, length).also { if (it > 0) bytesRead += it }
             } catch (e: IOException) {
-                Log.w(TAG, "Read [${candidate.second}] after switching failed: ${e.message}")
+                Log.w(TAG, "Read [${candidate.second.host}] after switching failed: ${e.javaClass.simpleName}")
                 runCatching { source.close() }
                 currentSource = null
             }
@@ -147,12 +217,15 @@ class FallbackUrlDataSource(
 
     class Factory(
         private val upstreamFactory: DataSource.Factory,
-        urls: List<String>
+        urls: List<String>,
+        private val requiredBitrate: () -> Long = { 0 }
     ) : DataSource.Factory {
         private val uris = urls.distinct().map { it.toUri() }
         private val preferredIndexHolder = PreferredIndexHolder()
+        val currentHost: String
+            get() = uris.getOrNull(preferredIndexHolder.index)?.host.orEmpty()
 
         override fun createDataSource(): DataSource =
-            FallbackUrlDataSource(upstreamFactory, uris, preferredIndexHolder)
+            FallbackUrlDataSource(upstreamFactory, uris, preferredIndexHolder, requiredBitrate)
     }
 }

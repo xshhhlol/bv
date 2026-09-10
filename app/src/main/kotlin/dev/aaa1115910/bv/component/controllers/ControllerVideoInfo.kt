@@ -59,6 +59,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
@@ -488,7 +491,6 @@ fun ControllerVideoInfoBottom(
                     modifier = if (index == defaultFocusIndex) Modifier.focusRequester(buttonsFocusRequester) else Modifier,
                     icon = icon,
                     label = label,
-                    wide = button == ControllerButton.Engagement,
                     active = active,
                     onClick = actionOf(button)
                 )
@@ -497,57 +499,52 @@ fun ControllerVideoInfoBottom(
     }
 }
 
-/** 仅获焦时显示用途提示，预留文字高度以免移动焦点时按钮跳动。 */
+/** 提示使用独立浮层，不占按钮空间，也不会被横向滚动容器裁切。 */
 @Composable
 private fun PlayerControlButton(
     modifier: Modifier = Modifier,
     icon: ImageVector,
     label: String,
-    wide: Boolean,
     active: Boolean,
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val hintAlpha by animateFloatAsState(
-        targetValue = if (focused) 1f else 0f,
-        animationSpec = tween(120),
-        label = "control hint"
-    )
-    Surface(
-        modifier = modifier
-            .width(if (wide) 112.dp else 80.dp)
-            .onFocusChanged { focused = it.hasFocus },
-        onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (active) BVColor.Cyan.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.07f),
-            contentColor = if (active) BVColor.Cyan else Color.White.copy(alpha = 0.9f),
-            focusedContainerColor = BVColor.Pink.copy(alpha = 0.22f),
-            focusedContentColor = Color.White,
-            pressedContainerColor = BVColor.Pink.copy(alpha = 0.38f),
-            pressedContentColor = Color.White
-        ),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(BorderStroke(1.dp, if (active) BVColor.Cyan.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.10f))),
-            focusedBorder = Border(BorderStroke(2.dp, BVColor.PinkBright))
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f, pressedScale = 0.98f)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+    val tooltipOffset = with(LocalDensity.current) { (-34).dp.roundToPx() }
+    Box {
+        Surface(
+            modifier = modifier.size(40.dp).onFocusChanged { focused = it.hasFocus },
+            onClick = onClick,
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                contentColor = if (active) BVColor.Cyan else Color.White.copy(alpha = 0.88f),
+                focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                focusedContentColor = Color.White,
+                pressedContainerColor = BVColor.Pink.copy(alpha = 0.25f),
+                pressedContentColor = Color.White
+            ),
+            border = ClickableSurfaceDefaults.border(
+                border = Border.None,
+                focusedBorder = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)))
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f, pressedScale = 0.96f)
         ) {
-            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(28.dp), tint = LocalContentColor.current)
-            Text(
-                modifier = Modifier.graphicsLayer { alpha = hintAlpha }.clearAndSetSemantics { },
-                text = label,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = LocalContentColor.current,
-                maxLines = 1
-            )
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp))
+            }
+        }
+        if (focused) {
+            Popup(alignment = Alignment.TopCenter, offset = IntOffset(0, tooltipOffset)) {
+                Text(
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xF0222530)).padding(horizontal = 10.dp, vertical = 5.dp),
+                    text = label,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
