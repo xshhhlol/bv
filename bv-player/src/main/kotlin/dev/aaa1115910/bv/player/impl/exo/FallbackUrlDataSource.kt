@@ -36,6 +36,24 @@ class FallbackUrlDataSource(
 
         private var lastSlowSwitchNanos: Long? = null
 
+        private val monitors = mutableMapOf<Int, SlowReadMonitor>()
+        private var slowIndex: Int? = null
+
+        @Synchronized
+        fun recordRead(index: Int, count: Int, nanos: Long, bitrate: Long): Boolean {
+            val slow = monitors.getOrPut(index) { SlowReadMonitor() }.record(count, nanos, bitrate)
+            if (slow) slowIndex = index
+            return slow
+        }
+
+        @Synchronized
+        fun consumeSlowSwitch(index: Int, nowNanos: Long): Boolean {
+            if (slowIndex != index || !allowSlowSwitch(nowNanos)) return false
+            slowIndex = null
+            monitors[index]?.reset()
+            return true
+        }
+
         @Synchronized
         fun allowSlowSwitch(nowNanos: Long): Boolean {
             val last = lastSlowSwitchNanos
@@ -56,7 +74,6 @@ class FallbackUrlDataSource(
     /** 本次 open 之后已经读出去的字节数 */
     private var bytesRead = 0L
     private var expectedLength = -1L
-    private val slowReadMonitor = SlowReadMonitor()
     private var switchBeforeNextRead = false
 
     override fun addTransferListener(transferListener: TransferListener) {
@@ -67,8 +84,11 @@ class FallbackUrlDataSource(
         close()
         openedSpec = dataSpec
         bytesRead = 0L
-        slowReadMonitor.reset()
         switchBeforeNextRead = false
+        // 磁盘预下载按小块重新 open，低速样本与待切换状态必须跨请求保留。
+        if (urls.size > 1 && preferredIndexHolder.consumeSlowSwitch(preferredIndexHolder.index, nanoTime())) {
+            preferredIndexHolder.index = (preferredIndexHolder.index + 1) % urls.size
+        }
         expectedLength = openFrom(dataSpec, buildCandidates(dataSpec.uri))
         return expectedLength
     }
@@ -110,7 +130,7 @@ class FallbackUrlDataSource(
         if (expectedLength >= 0 && bytesRead >= expectedLength) return -1
         if (switchBeforeNextRead) {
             switchBeforeNextRead = false
-            if (preferredIndexHolder.allowSlowSwitch(nanoTime())) {
+            if (preferredIndexHolder.consumeSlowSwitch(currentIndex, nanoTime())) {
                 tryFasterCdn(buffer, offset, length)?.let { return it }
             }
         }
@@ -121,7 +141,7 @@ class FallbackUrlDataSource(
             if (count > 0) {
                 bytesRead += count
                 switchBeforeNextRead = urls.size > 1 &&
-                    slowReadMonitor.record(count, nanoTime() - start, requiredBitrate())
+                    preferredIndexHolder.recordRead(currentIndex, count, nanoTime() - start, requiredBitrate())
             }
             count
         } catch (e: IOException) {
@@ -162,8 +182,6 @@ class FallbackUrlDataSource(
             currentIndex = oldIndex
             preferredIndexHolder.index = oldIndex
             return null
-        } finally {
-            slowReadMonitor.reset()
         }
     }
 
@@ -178,7 +196,6 @@ class FallbackUrlDataSource(
         if (urls.size < 2) throw cause
 
         Log.w(TAG, "Read [${currentUri?.host}] failed at $bytesRead bytes: ${cause.javaClass.simpleName}, switch cdn")
-        slowReadMonitor.reset()
         runCatching { currentSource?.close() }
         currentSource = null
 

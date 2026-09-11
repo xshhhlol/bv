@@ -118,8 +118,8 @@ class VideoPlayerV3ViewModel(
     private val danmakuTypeFilter = TypeFilter()
 
     private val _uiState = MutableStateFlow(
-        // debug 包默认开着，正式包看设置项，之后可以用控制条上的按钮随时开关
-        PlayerUiState(showPlayerInfo = Prefs.showPlayerInfo || BuildConfig.DEBUG)
+        // 覆盖安装后仍尊重已保存的调试开关。
+        PlayerUiState(showPlayerInfo = Prefs.showPlayerInfo)
     )
     val uiState = _uiState.asStateFlow()
     private val _seekerState = MutableStateFlow(SeekerState())
@@ -133,21 +133,21 @@ class VideoPlayerV3ViewModel(
     private var lastDebugInfoAt = 0L
     private var lastDebugInfo = ""
 
-    /**
-     * 调试信息按 1 秒一刷，不跟着进度条的 10Hz 走。
-     *
-     * 一是没必要：网速本来就是 5 秒滑动平均，10Hz 重绘只会让数字一直跳，反而读不出趋势；
-     * 二是有代价：拼这串信息要查两次 SimpleCache（`getCachedBytes` 还得遍历 256 MiB 范围内的
-     * 缓存块），而那些是 synchronized 方法，等于每秒在主线程上和正在写盘的预下载线程抢 20 次锁。
-     * 覆盖层没开的话连拼都不拼。
-     */
+    // 只读播放器/后台缓存快照，每秒刷新一次。关闭时停止调试流量采集。
+    private var lastDebugSource: Any? = null
     private fun currentDebugInfo(player: AbstractVideoPlayer): String {
         if (!_uiState.value.showPlayerInfo) {
             lastDebugInfo = ""
             return ""
         }
+        val state = _uiState.value
+        val source = player to Triple(state.aid, state.cid, state.mediaProfileState)
+        if (source != lastDebugSource) {
+            lastDebugSource = source
+            lastDebugInfo = ""
+        }
         val now = SystemClock.elapsedRealtime()
-        if (now - lastDebugInfoAt < DEBUG_INFO_INTERVAL_MS) return lastDebugInfo
+        if (lastDebugInfo.isNotBlank() && now - lastDebugInfoAt < DEBUG_INFO_INTERVAL_MS) return lastDebugInfo
         lastDebugInfoAt = now
         lastDebugInfo = player.debugInfo
         return lastDebugInfo
@@ -159,7 +159,9 @@ class VideoPlayerV3ViewModel(
         Prefs.showPlayerInfo = show
         // 关掉之后连采集都停掉，不只是不显示
         videoPlayer?.collectDebugInfo = show
+        lastDebugInfo = ""
         _uiState.update { it.copy(showPlayerInfo = show) }
+        updateSeekerState()
     }
     private var clockUpdateJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -449,6 +451,8 @@ class VideoPlayerV3ViewModel(
         newVideoPlayer.setPlayerEventListener(videoPlayerListener)
         newVideoPlayer.collectDebugInfo = _uiState.value.showPlayerInfo
         videoPlayer = newVideoPlayer
+        lastDebugInfo = ""
+        startSeekerUpdater()
     }
 
     fun detachPlayer() {

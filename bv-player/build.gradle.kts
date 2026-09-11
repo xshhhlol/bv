@@ -12,6 +12,7 @@ android {
 
     defaultConfig {
         minSdk = AppConfiguration.minSdk
+        targetSdk = AppConfiguration.targetSdk
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
@@ -64,6 +65,7 @@ dependencies {
     implementation(androidx.compose.ui)
     implementation(androidx.compose.ui.util)
     implementation(androidx.compose.ui.tooling.preview)
+    implementation(androidx.compose.foundation)
     implementation(androidx.compose.tv.foundation)
     implementation(androidx.compose.tv.material)
     implementation(androidx.compose.material)
@@ -76,6 +78,9 @@ dependencies {
     implementation(project(":libs:ffmpegDecoder"))
     testImplementation(libs.kotlin.test)
     androidTestImplementation(androidx.compose.ui.test.junit4)
+    androidTestImplementation(androidx.test.espresso.core)
+    androidTestImplementation(androidx.test.runner)
+    androidTestImplementation(androidx.test.junit)
     debugImplementation(androidx.compose.ui.test.manifest)
     debugImplementation(androidx.compose.ui.tooling)
 }

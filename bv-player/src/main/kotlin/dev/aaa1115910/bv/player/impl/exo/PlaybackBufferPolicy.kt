@@ -48,13 +48,12 @@ internal object PlaybackBufferPolicy {
      */
     const val PREFETCH_WINDOW_BYTES = 256 * MIB
 
-    /**
-     * 预下载起点要跳开播放器正在读的那一段。
-     *
-     * 播放器读到哪儿，那个字节就还没进缓存，直接从它开始下就是和播放器抢同一段字节：
-     * 两条连接下同样的内容，带宽翻倍消耗，而 SimpleCache 的写锁只允许一方落盘，
-     * 另一方下完就丢——既拖慢了播放器，自己还什么都没存下。
-     * 跳开一段之后各下各的，中间这段由播放器自己读过去补上。
-     */
-    const val PREFETCH_GAP_BYTES = 16 * MIB
+    /** 每次只锁定并提交一小块，取消/跳转不必等整个 256 MiB 窗口。 */
+    const val PREFETCH_CHUNK_BYTES = 2 * MIB
+
+    fun diskTargetBytes(freeBytes: Long): Long =
+        if (freeBytes < 256 * MIB) 0 else minOf(DISK_CACHE_BYTES, freeBytes / 4)
+
+    fun windowBytes(diskBudget: Long, streamCount: Int): Long =
+        minOf(PREFETCH_WINDOW_BYTES, diskBudget / (streamCount.coerceAtLeast(1) * 2))
 }

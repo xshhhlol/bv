@@ -69,11 +69,32 @@ class FallbackUrlDataSourceTest {
         source.close()
     }
 
+    @Test
+    fun shortPrefetchRequestsCarrySlowDetectionIntoNextOpen() {
+        val fixture = Fixture(slow = true, readNanos = 4_000_000_000L)
+        // 每块不足检测窗口；累计两个独立请求之后，下一块应改走备用线路。
+        for (position in listOf(5L, 9L)) {
+            val first = fixture.newSource()
+            first.open(DataSpec.Builder().setUri(fixture.primary).setPosition(position).setLength(4).build())
+            first.read(ByteArray(4), 0, 4)
+            assertEquals("one.example", fixture.opens.last().uri.host)
+            first.close()
+        }
+        val second = fixture.newSource()
+        second.open(DataSpec.Builder().setUri(fixture.primary).setPosition(13).setLength(4).build())
+        val bytes = ByteArray(4)
+        assertEquals(4, second.read(bytes, 0, 4))
+        assertArrayEquals(fixture.content.copyOfRange(13, 17), bytes)
+        assertEquals("two.example", fixture.opens.last().uri.host)
+        second.close()
+    }
+
     private class Fixture(
         val slow: Boolean = false,
         val rejectBackup: Boolean = false,
         val breakPrimary: Boolean = false,
-        val earlyEof: Boolean = false
+        val earlyEof: Boolean = false,
+        val readNanos: Long = 8_000_000_000L
     ) {
         val primary = Uri.parse("https://one.example/video")
         private val backup = Uri.parse("https://two.example/video")
@@ -124,7 +145,7 @@ class FallbackUrlDataSourceTest {
                 if (spec.uri == primary) {
                     if (breakPrimary && position >= 9) throw IOException("connection interrupted")
                     if (earlyEof && position >= 9) return -1
-                    if (slow) now += 8_000_000_000L
+                    if (slow) now += readNanos
                 }
                 if (position == end) return -1
                 val count = minOf(length, end - position)

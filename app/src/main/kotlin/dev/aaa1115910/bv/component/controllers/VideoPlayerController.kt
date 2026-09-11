@@ -644,26 +644,12 @@ fun VideoPlayerController(
             }
         )
 
-        // 画在控制条之后，否则会被顶部标题栏盖住
+        // 在普通控制层上方、菜单/弹窗下方绘制，不参与遥控器焦点。
         if (uiState.showPlayerInfo) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    // 亮画面上 30% 的底根本看不清字
-                    .background(Color.Black.copy(alpha = 0.65f))
-            ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    text = seekerState.value.debugInfo,
-                    color = Color.White,
-                    // 左侧标签靠空格对齐，非等宽字体会错开
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp
-                )
-            }
+            dev.aaa1115910.bv.player.PlayerDebugOverlay(
+                text = seekerState.value.debugInfo,
+                modifier = Modifier.align(Alignment.TopStart)
+            )
         }
 
         VideoListController(
