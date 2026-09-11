@@ -120,6 +120,8 @@ import kotlinx.coroutines.withContext
 import org.koin.compose.getKoin
 import kotlin.math.ceil
 
+private val logger = KotlinLogging.logger { }
+
 @Composable
 fun SeasonInfoScreen(
     modifier: Modifier = Modifier,
@@ -131,7 +133,6 @@ fun SeasonInfoScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val intent = (context as Activity).intent
-    val logger = KotlinLogging.logger { }
 
     var seasonId: Int? by remember { mutableStateOf(null) }
     var epId: Int? by remember { mutableStateOf(null) }
@@ -992,7 +993,6 @@ private fun SeasonSelectorContent(
 ) {
     val scope = rememberCoroutineScope()
     val rowState = rememberLazyListState()
-    val logger = KotlinLogging.logger {}
     val currentSeasonFocusRequester = remember { FocusRequester() }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
 

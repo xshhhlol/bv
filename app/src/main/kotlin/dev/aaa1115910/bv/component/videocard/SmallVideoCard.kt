@@ -47,6 +47,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.AnimatedColorText
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -308,12 +309,14 @@ fun CardInfo(
     pubTime: String?,
     highlighted: Boolean = false
 ) {
-    val titleColor by animateColorAsState(
+    // 两个颜色只在绘制阶段读取：焦点切换时只在 highlighted 变化那一下重组，
+    // 之后 260ms 的变色动画只重绘，不再每帧重组整个信息区
+    val titleColor = animateColorAsState(
         targetValue = if (highlighted) BVColor.TextPrimary else BVColor.TextPrimary.copy(alpha = 0.82f),
         animationSpec = BVMotion.colorTween(),
         label = "card title color"
     )
-    val subColor by animateColorAsState(
+    val subColor = animateColorAsState(
         targetValue = if (highlighted) BVColor.Pink else BVColor.TextTertiary,
         animationSpec = BVMotion.colorTween(),
         label = "card sub color"
@@ -323,27 +326,27 @@ fun CardInfo(
         modifier = modifier
             .padding(top = 10.dp, bottom = 6.dp)
     ) {
-        Text(
+        AnimatedColorText(
             text = title,
+            color = { titleColor.value },
+            modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
-            color = titleColor,
-            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
+            maxLines = 2
         )
         Spacer(Modifier.height(6.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            UpIcon(color = subColor)
-            Text(
-                modifier = Modifier.weight(1f),
+            UpIcon(color = { subColor.value })
+            AnimatedColorText(
                 text = upName,
+                color = { subColor.value },
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelMedium,
-                color = subColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1
             )
             Text(
                 text = pubTime ?: "",

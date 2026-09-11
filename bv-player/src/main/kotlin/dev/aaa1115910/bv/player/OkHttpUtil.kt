@@ -18,6 +18,30 @@ object OkHttpUtil {
     /** 单次读取无数据的超时，不是整段 4K 视频下载的总时长。 */
     private const val ReadTimeoutSeconds = 8L
 
+    @Volatile
+    private var sharedCustomSslClient: OkHttpClient? = null
+
+    /**
+     * 播放器共用的 OkHttpClient，进程内只建一次。
+     *
+     * 建 client 要把系统 CA 证书库整个读出来再拷一份，电视盒子上要几十到上百毫秒。
+     * 以前每次打开播放页都在主线程重建一个（每个还各带一个连接池），现在只建一次，换视频时还能复用到 CDN 的连接。
+     */
+    fun customSslOkHttpClient(context: Context): OkHttpClient =
+        sharedCustomSslClient ?: synchronized(this) {
+            sharedCustomSslClient
+                ?: generateCustomSslOkHttpClient(context.applicationContext).also { sharedCustomSslClient = it }
+        }
+
+    /** 在后台线程提前建好 [customSslOkHttpClient]，和解析播放地址并行，不占主线程 */
+    fun prewarmCustomSslOkHttpClient(context: Context) {
+        if (sharedCustomSslClient != null) return
+        val appContext = context.applicationContext
+        Thread({ runCatching { customSslOkHttpClient(appContext) } }, "bv-okhttp-prewarm")
+            .apply { isDaemon = true }
+            .start()
+    }
+
     fun generateCustomSslOkHttpClient(context: Context): OkHttpClient {
         val certificateFactory = CertificateFactory.getInstance("X.509")
         val customCaMap = mapOf(

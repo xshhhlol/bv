@@ -131,6 +131,9 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.ceil
 
+// 放在文件级：写在 Composable 里每次重组都会新建，捕获它的点击回调也跟着全变，子组件没法跳过重组
+private val logger = KotlinLogging.logger { }
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VideoInfoScreen(
@@ -139,7 +142,6 @@ fun VideoInfoScreen(
     toViewViewModel: ToViewViewModel = koinViewModel(),
 ) {
     val context = (LocalContext.current) as Activity
-    val logger = KotlinLogging.logger { }
 
     val defaultFocusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()

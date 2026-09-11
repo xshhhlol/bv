@@ -32,6 +32,8 @@ import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.OkHttpUtil
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
+import okhttp3.Call
+import okhttp3.Request
 
 /** 单个分片加载失败后的重试次数，配合 [FallbackUrlDataSource] 一起换 CDN */
 private const val LoadRetryCount = 5
@@ -67,12 +69,17 @@ class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     private val dataSourceFactory =
-        OkHttpDataSource.Factory(OkHttpUtil.generateCustomSslOkHttpClient(context)).apply {
+        // 共用的 client 在加载线程第一次发请求时才取（通常已经在后台预热好），主线程不再同步读证书库
+        OkHttpDataSource.Factory(object : Call.Factory {
+            override fun newCall(request: Request): Call =
+                OkHttpUtil.customSslOkHttpClient(context).newCall(request)
+        }).apply {
             options.userAgent?.let { setUserAgent(it) }
             options.referer?.let { setDefaultRequestProperties(mapOf("referer" to it)) }
         }
 
     init {
+        OkHttpUtil.prewarmCustomSslOkHttpClient(context)
         initPlayer()
     }
 

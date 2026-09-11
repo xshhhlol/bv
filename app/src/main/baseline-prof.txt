@@ -1,0 +1,25 @@
+# BV 应用的 Baseline Profile，AGP 会把它和依赖库自带的 profile 合并后打进 release 包。
+#
+# 依赖库里 Compose、协程、Coil 等自带了 profile，但 App 自身、TV Material、Media3、弹幕库都没有。
+# 这些代码在电视盒子上只能先解释执行、再慢慢 JIT，启动、首页翻页、切换页面、起播的前几次都会更卡。
+# 写进 profile 后，ART 会在后台 dexopt 时把它们提前编译成机器码，启动用到的类也会放进 app image。
+#
+# 用通配符覆盖整个包：TV 端交互路径多，逐个方法生成要连设备跑 Macrobenchmark，
+# 以后补上生成的 profile，可以换成更精确的规则。
+#
+# 侧载的 APK 由 ProfileInstaller 在首次启动时写入 profile，系统空闲时才会编译；
+# 想马上生效可以执行：adb shell cmd package compile -f -m speed-profile dev.frost819.bv
+
+# App 本体、bili-api、bv-player、字幕解析
+HSPLdev/aaa1115910/**->**(**)**
+Ldev/aaa1115910/**;
+
+# TV Material 组件（Card、Surface、Text、NavigationDrawer 等）
+HSPLandroidx/tv/**->**(**)**
+Landroidx/tv/**;
+
+# 播放器：起播时在主线程创建，播放期间解封装、加载调度一直在跑
+HSPLandroidx/media3/**->**(**)**
+
+# 弹幕渲染，播放期间每帧都会走
+HSPLcom/kuaishou/akdanmaku/**->**(**)**

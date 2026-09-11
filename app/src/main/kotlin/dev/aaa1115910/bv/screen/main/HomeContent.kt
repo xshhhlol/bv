@@ -41,6 +41,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
+private val logger = KotlinLogging.logger("HomeContent")
+
 @Composable
 fun HomeContent(
     navFocusRequester: FocusRequester,
@@ -50,7 +52,6 @@ fun HomeContent(
     userViewModel: UserViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger("HomeContent")
     // 切走的页面会被销毁，滚动位置默认也跟着没了；用它把每个 tab 的状态存起来，
     // 切回来还在原来的位置，不用重新往下翻
     val tabStateHolder = rememberSaveableStateHolder()

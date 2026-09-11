@@ -26,7 +26,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Text
+import androidx.tv.material3.LocalTextStyle
+import dev.aaa1115910.bv.component.AnimatedColorText
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.BVColor
@@ -51,7 +52,8 @@ fun VideosRow(
         animationSpec = BVMotion.focusSpring(),
         label = "title scale"
     )
-    val titleColor by animateColorAsState(
+    // 颜色只在绘制阶段读取，标题变色动画期间整行不用每帧重组
+    val titleColor = animateColorAsState(
         targetValue = if (hasFocus) BVColor.TextPrimary else BVColor.TextTertiary,
         animationSpec = BVMotion.colorTween(),
         label = "title color"
@@ -61,7 +63,7 @@ fun VideosRow(
     Column(
         modifier = modifier.onFocusChanged { hasFocus = it.hasFocus }
     ) {
-        Text(
+        AnimatedColorText(
             modifier = Modifier
                 .padding(start = 50.dp)
                 .graphicsLayer {
@@ -71,8 +73,8 @@ fun VideosRow(
                     transformOrigin = TransformOrigin(0f, 0.5f)
                 },
             text = header,
-            fontSize = 30.sp,
-            color = titleColor
+            style = LocalTextStyle.current.merge(fontSize = 30.sp),
+            color = { titleColor.value }
         )
         LazyRow(
             modifier = Modifier

@@ -30,7 +30,8 @@ object LogCatcherUtil {
             logLogcat()
             originHandler?.uncaughtException(thread, exception)
         }
-        clearOldLogFiles()
+        // 扫目录、删旧日志都是磁盘 IO，不跟启动抢主线程；logcat -c 仍然同步做，免得把这次启动的日志清掉
+        Thread({ clearOldLogFiles() }, "bv-log-cleanup").apply { isDaemon = true }.start()
     }
 
     fun logLogcat(manual: Boolean = false): File? {

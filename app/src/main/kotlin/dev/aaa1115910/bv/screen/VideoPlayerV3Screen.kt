@@ -43,12 +43,13 @@ import kotlinx.coroutines.isActive
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.absoluteValue
 
+private val logger = KotlinLogging.logger { }
+
 @Composable
 fun VideoPlayerV3Screen(
     modifier: Modifier = Modifier,
     playerViewModel: VideoPlayerV3ViewModel = koinViewModel()
 ) {
-    val logger = KotlinLogging.logger { }
     val context = LocalContext.current
     val videoPlayer = playerViewModel.videoPlayer
     val danmakuPlayer = playerViewModel.danmakuPlayer

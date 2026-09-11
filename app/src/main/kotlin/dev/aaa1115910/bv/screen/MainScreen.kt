@@ -55,13 +55,14 @@ import dev.aaa1115910.bv.viewmodel.UserViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 
+private val logger = KotlinLogging.logger("MainScreen")
+
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val logger = KotlinLogging.logger("MainScreen")
     var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
     var selectedDrawerItem by remember { mutableStateOf(Prefs.homeLeftNaviItem) }
