@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component.controllers
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -59,6 +60,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+// 放在文件级：写在 Composable 里每次重组都会新建一个，捕获它的回调也跟着全变，子组件就没法跳过重组
+private val logger = KotlinLogging.logger {}
+
 @Composable
 fun VideoPlayerController(
     modifier: Modifier = Modifier,
@@ -105,7 +109,6 @@ fun VideoPlayerController(
     val currentUiState by rememberUpdatedState(uiState)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger {}
 
     var engagementAid by remember { mutableStateOf<Long?>(null) }
     androidx.compose.runtime.LaunchedEffect(uiState.aid) { engagementAid = null }
@@ -114,6 +117,7 @@ fun VideoPlayerController(
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
     val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController } }
+    val controlButtonTooltipState = remember { ControlButtonTooltipState() }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
     var goTime by remember { mutableLongStateOf(0L) }
@@ -123,15 +127,14 @@ fun VideoPlayerController(
     var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
-    var controllerInteraction by remember { mutableLongStateOf(0L) }
-
+    // 不是 Compose 状态：每次按键都要记一下，之前拿状态当 effect 的 key，每按一次键整个控制器都要重组
+    val interactionClock = remember { InteractionClock() }
 
     // 缓冲或调整进度时暂停自动隐藏；恢复后重新给用户完整的操作时间。
-    androidx.compose.runtime.LaunchedEffect(
-        showInfoSeekController, isSeeking, uiState.isBuffering, controllerInteraction
-    ) {
+    androidx.compose.runtime.LaunchedEffect(showInfoSeekController, isSeeking, uiState.isBuffering) {
         if (showInfoSeekController && !isSeeking && !uiState.isBuffering) {
-            delay(5000)
+            interactionClock.touch()
+            interactionClock.awaitIdle(5000)
             showInfoSeekController = false
         }
     }
@@ -173,13 +176,13 @@ fun VideoPlayerController(
             if (!isPlaying) onPlay()
 
             isSeeking = false
-            controllerInteraction++
+            interactionClock.touch()
         }
     }
 
     fun onDirectionLeft() {
         showInfoSeekController = true
-        controllerInteraction++
+        interactionClock.touch()
         if (!isSeeking) goTime = seekerState.value.currentTime
         onTimeBack()
         startSeekCountdown()
@@ -187,7 +190,7 @@ fun VideoPlayerController(
 
     fun onDirectionRight() {
         showInfoSeekController = true
-        controllerInteraction++
+        interactionClock.touch()
         if (!isSeeking) goTime = seekerState.value.currentTime
         onTimeForward()
         startSeekCountdown()
@@ -198,7 +201,7 @@ fun VideoPlayerController(
         isSeeking = false
         if (!isPlaying) onPlay()
         showInfoSeekController = true
-        controllerInteraction++
+        interactionClock.touch()
         seekCountdown?.cancel()
     }
 
@@ -540,18 +543,16 @@ fun VideoPlayerController(
             .focusable()
             .onPreviewKeyEvent { event ->
                 // 只记录操作；计时由上面的 effect 管理，缓冲期间不会误隐藏控制栏。
-                controllerInteraction++
+                interactionClock.touch()
                 // 调用分离出去的处理函数
                 handleKeyEvent(event)
             }
     ) {
         content()
         if (uiState.subtitleId != -1L) {
-            val currentTime = seekerState.value.currentTime
-
             BottomSubtitle(
                 subtitleData = uiState.subtitleData,
-                currentTime = currentTime,
+                currentTime = { seekerState.value.currentTime },
                 fontSize = uiState.subtitleState.fontSize,
                 opacity = uiState.subtitleState.opacity,
                 padding = uiState.subtitleState.bottomPadding,
@@ -585,7 +586,8 @@ fun VideoPlayerController(
             show = showInfoSeekController,
             isSeeking = isSeeking,
             goTime = goTime,
-            seekerState = seekerState.value,
+            // 传 State 本身：进度每 100ms 变一次，在这里读 value 会让整个控制器每秒重组十次，隐藏时也一样
+            seekerState = seekerState,
             title = uiState.title,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
@@ -597,6 +599,7 @@ fun VideoPlayerController(
             publishDate = uiState.publishDate,
             viewCount = uiState.viewCount,
             onlineCount = uiState.onlineCount,
+            tooltipState = controlButtonTooltipState,
             onDirectionLeft = { onDirectionLeft() },
             onDirectionRight = { onDirectionRight() },
             onSeekGoTime = { onSeekGoTime() },
@@ -646,8 +649,10 @@ fun VideoPlayerController(
 
         // 在普通控制层上方、菜单/弹窗下方绘制，不参与遥控器焦点。
         if (uiState.showPlayerInfo) {
+            // 调试文本一秒才变一次，只在它变化时重组
+            val debugInfo by remember(seekerState) { derivedStateOf { seekerState.value.debugInfo } }
             dev.aaa1115910.bv.player.PlayerDebugOverlay(
-                text = seekerState.value.debugInfo,
+                text = debugInfo,
                 modifier = Modifier.align(Alignment.TopStart)
             )
         }
@@ -714,6 +719,27 @@ fun VideoPlayerController(
                 onSubtitleSettingChange(SubtitleSettingAction.SetBottomPadding(padding))
             }
         )
+
+        // 底栏按钮的提示最后画，和原来的 Popup 窗口一样盖在所有控制层上面
+        ControlButtonTooltipHost(controlButtonTooltipState)
+    }
+}
+
+/** 最近一次操作控制器的时间，只给自动隐藏计时用 */
+private class InteractionClock {
+    private var lastInteractionAt = 0L
+
+    fun touch() {
+        lastInteractionAt = SystemClock.uptimeMillis()
+    }
+
+    /** 挂起到连续 [idleMillis] 毫秒没有操作为止，中途有操作就顺延 */
+    suspend fun awaitIdle(idleMillis: Long) {
+        while (true) {
+            val remaining = lastInteractionAt + idleMillis - SystemClock.uptimeMillis()
+            if (remaining <= 0) return
+            delay(remaining)
+        }
     }
 }
 

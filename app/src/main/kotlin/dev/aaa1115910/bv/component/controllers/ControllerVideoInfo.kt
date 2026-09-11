@@ -31,10 +31,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -51,6 +57,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -59,10 +69,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -91,7 +101,7 @@ fun ControllerVideoInfo(
     show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
-    seekerState: SeekerState,
+    seekerState: State<SeekerState>,
     title: String,
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
@@ -103,6 +113,7 @@ fun ControllerVideoInfo(
     publishDate: Date?,
     viewCount: Int,
     onlineCount: String?,
+    tooltipState: ControlButtonTooltipState,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -158,6 +169,7 @@ fun ControllerVideoInfo(
                 fromSeason = fromSeason,
                 danmakuEnabled = danmakuEnabled,
                 isLooping = isLooping,
+                tooltipState = tooltipState,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
@@ -310,12 +322,13 @@ fun ControllerVideoInfoBottom(
     show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
-    seekerState: SeekerState,
+    seekerState: State<SeekerState>,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
+    tooltipState: ControlButtonTooltipState,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -355,6 +368,8 @@ fun ControllerVideoInfoBottom(
             ),
         verticalArrangement = Arrangement.Bottom
     ) {
+        // 进度只在底栏这一层读，外层控制器不用跟着每 100ms 重组一次
+        val seeker = seekerState.value
         if (isSeeking && videoShot != null) {
             VideoShot(
                 modifier = Modifier
@@ -362,7 +377,7 @@ fun ControllerVideoInfoBottom(
                 videoShot = videoShot,
                 imageCache = videoShotCache,
                 position = goTime,
-                duration = seekerState.totalDuration,
+                duration = seeker.totalDuration,
                 coercedOffset = (-24).dp
             )
         }
@@ -371,7 +386,7 @@ fun ControllerVideoInfoBottom(
         ) {
             Text(
                 modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
+                text = "${if (isSeeking) goTime.formatHourMinSec() else seeker.currentTime.formatHourMinSec()} / ${seeker.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
@@ -419,9 +434,9 @@ fun ControllerVideoInfoBottom(
         ) {
             VideoProgressSeek(
                 modifier = Modifier.fillMaxWidth(),
-                duration = seekerState.totalDuration,
-                position = if (isSeeking) goTime else seekerState.currentTime,
-                bufferedPercentage = seekerState.bufferedPercentage,
+                duration = seeker.totalDuration,
+                position = if (isSeeking) goTime else seeker.currentTime,
+                bufferedPercentage = seeker.bufferedPercentage,
                 isPersistentSeek = false,
                 focused = isSeekFocused
             )
@@ -502,6 +517,7 @@ fun ControllerVideoInfoBottom(
                     icon = icon,
                     label = label,
                     active = active,
+                    tooltipState = tooltipState,
                     onClick = actionOf(button)
                 )
             }
@@ -509,54 +525,122 @@ fun ControllerVideoInfoBottom(
     }
 }
 
-/** 提示使用独立浮层，不占按钮空间，也不会被横向滚动容器裁切。 */
+/** 提示由 [ControlButtonTooltipHost] 统一画在控制器最上层，不占按钮空间，也不会被横向滚动容器和底栏裁切。 */
 @Composable
 private fun PlayerControlButton(
     modifier: Modifier = Modifier,
     icon: ImageVector,
     label: String,
     active: Boolean,
+    tooltipState: ControlButtonTooltipState,
     onClick: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val tooltipOffset = with(LocalDensity.current) { (-34).dp.roundToPx() }
-    Box {
-        Surface(
-            modifier = modifier.size(40.dp).onFocusChanged { focused = it.hasFocus },
-            onClick = onClick,
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.Transparent,
-                contentColor = if (active) BVColor.Cyan else Color.White.copy(alpha = 0.88f),
-                focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                focusedContentColor = Color.White,
-                pressedContainerColor = BVColor.Pink.copy(alpha = 0.25f),
-                pressedContentColor = Color.White
-            ),
-            border = ClickableSurfaceDefaults.border(
-                border = Border.None,
-                focusedBorder = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)))
-            ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f, pressedScale = 0.96f)
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp))
-            }
-        }
-        if (focused) {
-            Popup(alignment = Alignment.TopCenter, offset = IntOffset(0, tooltipOffset)) {
-                Text(
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xF0222530)).padding(horizontal = 10.dp, vertical = 5.dp),
-                    text = label,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    color = Color.White,
-                    maxLines = 1
-                )
-            }
+    val tooltipLabel = rememberUpdatedState(label)
+    val tooltipAnchor = remember { ControlButtonTooltipAnchor(tooltipLabel) }
+    // 按钮离开组合（底栏收起动画结束）时提示跟着消失，和原来 Popup 随按钮一起销毁一样
+    DisposableEffect(tooltipState, tooltipAnchor) {
+        onDispose { tooltipState.hide(tooltipAnchor) }
+    }
+    Surface(
+        modifier = modifier
+            .size(40.dp)
+            .onGloballyPositioned { tooltipAnchor.coordinates = it }
+            .onFocusChanged {
+                if (it.hasFocus) tooltipState.show(tooltipAnchor) else tooltipState.hide(tooltipAnchor)
+            },
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = if (active) BVColor.Cyan else Color.White.copy(alpha = 0.88f),
+            focusedContainerColor = Color.White.copy(alpha = 0.15f),
+            focusedContentColor = Color.White,
+            pressedContainerColor = BVColor.Pink.copy(alpha = 0.25f),
+            pressedContentColor = Color.White
+        ),
+        border = ClickableSurfaceDefaults.border(
+            border = Border.None,
+            focusedBorder = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)))
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f, pressedScale = 0.96f)
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp))
         }
     }
+}
+
+/**
+ * 底栏按钮的文字提示。
+ *
+ * 以前每个按钮获得焦点时各开一个 Popup。Popup 是独立窗口，焦点左右移一格就要销毁一个、再新建一个，
+ * 电视盒子上切换按钮会卡一下。现在焦点按钮只把自己登记到这里，由 [ControlButtonTooltipHost]
+ * 在控制器最外层画出来：层级、不受底栏裁切、摆放位置都和原来的 Popup 一致，只是不再开窗口。
+ */
+@Stable
+class ControlButtonTooltipState {
+    internal var focusedAnchor: ControlButtonTooltipAnchor? by mutableStateOf(null)
+        private set
+
+    /** 画提示那一层的坐标，按钮位置换算到这里 */
+    internal var hostCoordinates: LayoutCoordinates? = null
+
+    internal fun show(anchor: ControlButtonTooltipAnchor) {
+        focusedAnchor = anchor
+    }
+
+    internal fun hide(anchor: ControlButtonTooltipAnchor) {
+        if (focusedAnchor === anchor) focusedAnchor = null
+    }
+}
+
+internal class ControlButtonTooltipAnchor(val label: State<String>) {
+    /**
+     * 按钮的布局坐标。按钮每次重新定位（比如横向滚动）都会写一次，neverEqual 让同一个坐标对象也算变化；
+     * 提示在摆放阶段读它，按钮挪了只重新摆放提示，不重组
+     */
+    var coordinates: LayoutCoordinates? by mutableStateOf(null, neverEqualPolicy())
+}
+
+/**
+ * 画当前焦点按钮的提示。要放在 VideoPlayerController 最外层的最后面，和原来的 Popup 一样盖在所有控制层上面。
+ *
+ * 摆放算法照搬原来的 Popup(alignment = TopCenter, offset = (0, -34dp))，
+ * 超出范围时像 Popup 窗口被系统限制在屏幕内那样往里挪。
+ */
+@Composable
+fun ControlButtonTooltipHost(state: ControlButtonTooltipState) {
+    val anchor = state.focusedAnchor ?: return
+    Text(
+        modifier = Modifier
+            .onPlaced { state.hostCoordinates = it }
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                // 自身不占位置
+                layout(0, 0) {
+                    val host = state.hostCoordinates?.takeIf { it.isAttached }
+                    val target = anchor.coordinates?.takeIf { it.isAttached }
+                    if (host != null && target != null) {
+                        val tooltipSize = IntSize(placeable.width, placeable.height)
+                        val position = host.localPositionOf(target, Offset.Zero).round() +
+                            Alignment.TopCenter.align(IntSize.Zero, target.size, layoutDirection) -
+                            Alignment.TopCenter.align(IntSize.Zero, tooltipSize, layoutDirection) +
+                            IntOffset(0, (-34).dp.roundToPx())
+                        placeable.place(
+                            x = position.x.coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0)),
+                            y = position.y.coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0))
+                        )
+                    }
+                }
+            }
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xF0222530)).padding(horizontal = 10.dp, vertical = 5.dp),
+        text = anchor.label.value,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        color = Color.White,
+        maxLines = 1
+    )
 }
 
 @Composable
@@ -598,6 +682,7 @@ private fun ClockPreview() {
 @Composable
 private fun ControllerVideoInfoPreview() {
     var show by remember { mutableStateOf(true) }
+    val tooltipState = remember { ControlButtonTooltipState() }
 
     BVTheme {
         Box(
@@ -615,7 +700,7 @@ private fun ControllerVideoInfoPreview() {
             show = show,
             isSeeking = false,
             goTime = 0,
-            seekerState = SeekerState(0, 0, 0, ""),
+            seekerState = remember { mutableStateOf(SeekerState(0, 0, 0, "")) },
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             clock = Pair(12, 30),
             videoShot = null,
@@ -638,6 +723,8 @@ private fun ControllerVideoInfoPreview() {
             onGoToVideoInfo = {},
             onToggleLoop = {},
             onGoToUpPage = {},
+            tooltipState = tooltipState,
         )
+        ControlButtonTooltipHost(tooltipState)
     }
 }

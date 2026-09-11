@@ -5,11 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,22 +25,19 @@ import dev.aaa1115910.bv.BuildConfig
 fun BottomSubtitle(
     modifier: Modifier = Modifier,
     subtitleData: List<SubtitleItem>,
-    currentTime: Long,
+    currentTime: () -> Long,
     fontSize: TextUnit,
     opacity: Float,
     padding: Dp,
 ) {
-    var currentText by remember { mutableStateOf("") }
-
-    val updateCurrentText: () -> Unit = {
-        runCatching {
-            currentText = subtitleData.find { it.isShowing(currentTime) }?.content
-                ?: if (BuildConfig.DEBUG) "【DEBUG】无内容" else ""
+    // 进度每 100ms 刷新一次，字幕却要几秒才换一句：进度只在 derivedStateOf 里读，
+    // 显示的文字真的变了才重组，调用方也不会被进度带着一起重组
+    val currentText by remember(subtitleData, currentTime) {
+        derivedStateOf {
+            runCatching {
+                subtitleData.find { it.isShowing(currentTime()) }?.content
+            }.getOrNull() ?: if (BuildConfig.DEBUG) "【DEBUG】无内容" else ""
         }
-    }
-
-    LaunchedEffect(subtitleData, currentTime) {
-        updateCurrentText()
     }
 
     Box(
