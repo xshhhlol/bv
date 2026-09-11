@@ -36,6 +36,17 @@ abstract class AbstractVideoPlayer {
     /** 暂停 */
     abstract fun pause()
 
+    /**
+     * 是否允许播放，宿主页面按自己在不在前台来设。
+     *
+     * 设为 false 时立即暂停，之后的 [start] 都不生效（实现类要在 [start] 里遵守）；设回 true 不会自动续播。
+     */
+    var playbackAllowed: Boolean = true
+        set(value) {
+            field = value
+            if (!value) pause()
+        }
+
     /** 停止 */
     abstract fun stop()
 

@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.player.impl.exo
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -121,6 +122,10 @@ class ExoMediaPlayer(
             .setBandwidthMeter(bandwidthMeter)
             .setSeekForwardIncrementMs(1000 * 10)
             .setSeekBackIncrementMs(1000 * 5)
+            // 申请音频焦点：电视桌面、信号源、语音助手等要出声时这边自动暂停或压低音量，而不是跟着一起响
+            .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
+            // 蓝牙音箱、耳机断开时暂停，免得突然改从电视喇叭外放
+            .setHandleAudioBecomingNoisy(true)
             .build()
             .apply {
                 // 直接跳到最近的关键帧。精确跳转要从前一个关键帧解码到目标位置，
@@ -284,6 +289,7 @@ class ExoMediaPlayer(
     }
 
     override fun start() {
+        if (!playbackAllowed) return
         mPlayer?.play()
     }
 
@@ -323,6 +329,7 @@ class ExoMediaPlayer(
         get() = mPlayer?.bufferedPercentage ?: 0
 
     override fun setOptions() {
+        if (!playbackAllowed) return
         mPlayer?.playWhenReady = true
     }
 

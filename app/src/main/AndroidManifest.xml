@@ -52,8 +52,10 @@
             android:exported="true"
             android:label="@string/title_activity_media_codec"
             android:theme="@style/Theme.BV" />
+        <!-- 电视开机时遥控器重连、HDMI 输出切换都会带来配置变化，播放页自己消化，不整页重建 -->
         <activity
             android:name=".activities.video.VideoPlayerV3Activity"
+            android:configChanges="density|keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="true"
             android:label="@string/title_activity_video_player_v3"
             android:theme="@style/Theme.BV" />

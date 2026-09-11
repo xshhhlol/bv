@@ -226,10 +226,6 @@ fun VideoPlayerV3Screen(
             modifier = Modifier.background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-            LaunchedEffect(Unit) {
-                videoPlayer?.setOptions()
-            }
-
             val aspectRatio = when (uiState.aspectRatio) {
                 VideoAspectRatio.Default -> {
                     if (uiState.videoHeight > 0 && uiState.videoWidth > 0) {

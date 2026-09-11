@@ -1,14 +1,18 @@
 package dev.aaa1115910.bv.activities.video
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
@@ -20,6 +24,16 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class VideoPlayerV3Activity : ComponentActivity() {
     private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
+
+    /** 电视待机会先灭屏，不只靠 onPause，亮灭屏时也同步一次前后台状态 */
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            playerViewModel.setInForeground(
+                intent.action == Intent.ACTION_SCREEN_ON &&
+                        lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            )
+        }
+    }
 
     companion object {
         private val logger = KotlinLogging.logger { }
@@ -72,18 +86,34 @@ class VideoPlayerV3Activity : ComponentActivity() {
             }
         }
 
-        // 初始化viewmodel参数
-        initViewModelFromIntent()
-        // 初始化播放器
-        playerViewModel.initVideoPlayer(applicationContext)
-        // 初始化弹幕播放器
-        playerViewModel.initDanmakuPlayer()
-        // 加载视频资源并播放
-        playerViewModel.loadVideoWithResources()
+        // 页面重建时 ViewModel 里的播放器还在，不能再初始化一遍：
+        // 旧播放器不会被释放，视频还会从头重新加载并自动播放
+        if (playerViewModel.videoPlayer == null) {
+            // 初始化viewmodel参数
+            initViewModelFromIntent()
+            // 初始化播放器
+            playerViewModel.initVideoPlayer(applicationContext)
+            // 初始化弹幕播放器
+            playerViewModel.initDanmakuPlayer()
+            // 加载视频资源并播放
+            playerViewModel.loadVideoWithResources()
+        }
+
+        ContextCompat.registerReceiver(
+            this,
+            screenStateReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onResume() {
         super.onResume()
+
+        playerViewModel.setInForeground(true)
 
         // 视频全屏播放，隐藏状态栏
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -101,12 +131,12 @@ class VideoPlayerV3Activity : ComponentActivity() {
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
 
-        playerViewModel.videoPlayer?.pause()
-        playerViewModel.danmakuPlayer?.pause()
+        playerViewModel.setInForeground(false)
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterReceiver(screenStateReceiver)
         if (currentInstance === this) {
             currentInstance = null
         }

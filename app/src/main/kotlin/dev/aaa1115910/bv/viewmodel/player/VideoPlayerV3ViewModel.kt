@@ -450,6 +450,7 @@ class VideoPlayerV3ViewModel(
 
         newVideoPlayer.setPlayerEventListener(videoPlayerListener)
         newVideoPlayer.collectDebugInfo = _uiState.value.showPlayerInfo
+        newVideoPlayer.playbackAllowed = inForeground
         videoPlayer = newVideoPlayer
         lastDebugInfo = ""
         startSeekerUpdater()
@@ -463,6 +464,23 @@ class VideoPlayerV3ViewModel(
         loadDetailJob?.cancel()
         videoPlayer?.release()
         videoPlayer = null
+    }
+
+    /** 播放页是否在前台，见 [setInForeground] */
+    private var inForeground = false
+
+    /**
+     * 播放页进出前台（resume / pause、亮屏 / 灭屏）时由 Activity 调用。
+     *
+     * 以前只在 onPause 里暂停一次，可加载完成、出错重试、连播倒计时、拖进度后的自动续播都是异步回来的，
+     * 晚一步到就会在后台把视频重新放起来。电视开了快速开机，关机时进程和页面都还留着，
+     * 开机就成了桌面在前面、播放页在后面出声。所以不在前台时直接在播放器那层禁掉播放，
+     * 回到前台也不自动续播，和按 Home 出去再回来一样停在暂停状态。
+     */
+    fun setInForeground(inForeground: Boolean) {
+        this.inForeground = inForeground
+        videoPlayer?.playbackAllowed = inForeground
+        if (!inForeground) danmakuPlayer?.pause()
     }
 
     fun initDanmakuPlayer() {
