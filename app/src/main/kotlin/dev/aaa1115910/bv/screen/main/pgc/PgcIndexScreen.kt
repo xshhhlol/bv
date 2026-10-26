@@ -37,6 +37,10 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
+import dev.aaa1115910.biliapi.entity.pgc.index.Area
+import dev.aaa1115910.biliapi.entity.pgc.index.IndexOrder
+import dev.aaa1115910.biliapi.entity.pgc.index.SeasonStatus
+import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
@@ -82,7 +86,19 @@ fun PgcIndexScreen(
             logger.warn { "get pgcType from intent failed: ${it.stackTraceToString()}" }
         }.getOrDefault(PgcType.Anime)
         logger.fInfo { "index pgcType: $pgcType" }
-        pgcIndexViewModel.changePgcType(pgcType)
+        // 从电影首页的分类、片单等入口进来时会带上预设的筛选条件，
+        // 只在首次进入时应用，Activity 重建后保留用户改过的筛选
+        pgcIndexViewModel.initIfNeeded(
+            pgcType = pgcType,
+            indexOrder = intent.getStringExtra("indexOrder")
+                ?.let { name -> IndexOrder.entries.find { it.name == name } },
+            seasonStatus = intent.getStringExtra("seasonStatus")
+                ?.let { name -> SeasonStatus.entries.find { it.name == name } },
+            area = intent.getStringExtra("area")
+                ?.let { name -> Area.entries.find { it.name == name } },
+            style = intent.getStringExtra("style")
+                ?.let { name -> Style.entries.find { it.name == name } }
+        )
         reloadData()
     }
 

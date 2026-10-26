@@ -93,6 +93,24 @@
     <string name="logout_dialog_text">是否登出账号 %1$s</string>
     <string name="logout_dialog_title">登出确认</string>
 
+    <string name="movie_home_button_free">免费看</string>
+    <string name="movie_home_button_rank">排行榜</string>
+    <string name="movie_home_category_area">地区</string>
+    <string name="movie_home_category_style">类型</string>
+    <string name="movie_home_entry_following_subtitle">我追的影视</string>
+    <string name="movie_home_entry_free_subtitle">不用大会员</string>
+    <string name="movie_home_entry_index_subtitle">按类型、地区找片</string>
+    <string name="movie_home_entry_rank_subtitle">实时热度 TOP100</string>
+    <string name="movie_home_shelf_feed">猜你喜欢</string>
+    <string name="movie_home_shelf_free">免费看</string>
+    <string name="movie_home_shelf_free_subtitle">不用大会员，人气最高的免费影片</string>
+    <string name="movie_home_shelf_more">查看全部</string>
+    <string name="movie_home_shelf_rank">热播榜</string>
+    <string name="movie_home_shelf_rank_more">完整榜单</string>
+    <string name="movie_home_shelf_rank_subtitle">近三日综合热度，每小时更新</string>
+    <string name="movie_home_shelf_updated">最近更新</string>
+    <string name="movie_home_shelf_updated_subtitle">新上架和刚更新的影片</string>
+
     <string name="no_data">无可用数据</string>
 
     <string name="pgc_home_button_unknown">占位</string>
@@ -110,6 +128,13 @@
     <string name="pgc_index_filter_style">风格</string>
     <string name="pgc_index_filter_title_prefix">"索引筛选 - "</string>
     <string name="pgc_index_filter_year">年份</string>
+    <string name="pgc_rank_day_three_days">三日榜</string>
+    <string name="pgc_rank_day_week">周榜</string>
+    <string name="pgc_rank_follow_count">%s追剧</string>
+    <string name="pgc_rank_load_failed">排行榜加载失败</string>
+    <string name="pgc_rank_play_count">%s播放</string>
+    <string name="pgc_rank_retry">重试</string>
+    <string name="pgc_rank_title">%s排行榜</string>
     <string name="pgc_type_anime">番剧</string>
     <string name="pgc_type_documentary">纪录片</string>
     <string name="pgc_type_guochuang">国创</string>
@@ -315,6 +340,7 @@
     <string name="title_activity_logs">日志列表</string>
     <string name="title_activity_media_codec">解码器信息</string>
     <string name="title_activity_pgc_index">PGC 索引</string>
+    <string name="title_activity_pgc_rank">排行榜</string>
     <string name="title_activity_remote_controller_panel_demo">遥控板按键演示</string>
     <string name="title_activity_search_input">搜索输入</string>
     <string name="title_activity_search_result">搜索结果</string>

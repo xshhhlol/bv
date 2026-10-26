@@ -16,11 +16,14 @@ import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
 import dev.aaa1115910.biliapi.http.entity.index.IndexResultData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedV3Data
+import dev.aaa1115910.biliapi.http.entity.pgc.PgcSeasonRankData
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcWebInitialStateData
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamic
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamicList
 import dev.aaa1115910.biliapi.http.entity.region.RegionFeedRcmd
 import dev.aaa1115910.biliapi.http.entity.region.RegionLocs
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyDetailData
+import dev.aaa1115910.biliapi.http.entity.reply.ReplyMainData
 import dev.aaa1115910.biliapi.http.entity.search.AppSearchSquareData
 import dev.aaa1115910.biliapi.http.entity.search.KeywordSuggest
 import dev.aaa1115910.biliapi.http.entity.search.SearchResultData
@@ -711,6 +714,51 @@ object BiliHttpApi {
         require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
         parameter("aid", avid)
         parameter("bvid", bvid)
+    }.body()
+
+    /**
+     * 获取[oid]的一级评论
+     *
+     * 没用 web 端现在发的 /x/v2/reply/wbi/main：未登录时它只给 3 条且直接标记 is_end，
+     * 这个老接口未登录也能正常翻页
+     *
+     * @param type 评论区类型，视频（含番剧剧集）为 1
+     * @param mode 3: 按热度 2: 按时间
+     * @param next 分页游标，第一页传 0，之后传上一页返回的 cursor.next
+     */
+    suspend fun getReplyMain(
+        oid: Long,
+        type: Int = 1,
+        mode: Int = 3,
+        next: Long = 0,
+        pageSize: Int = 20,
+        sessData: String? = null
+    ): BiliResponse<ReplyMainData> = client.get("/x/v2/reply/main") {
+        parameter("oid", oid)
+        parameter("type", type)
+        parameter("mode", mode)
+        parameter("next", next)
+        parameter("ps", pageSize)
+        sessData?.takeIf { it.isNotBlank() }?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
+
+    /**
+     * 获取[oid]下评论[root]的楼中楼
+     */
+    suspend fun getReplyDetail(
+        oid: Long,
+        root: Long,
+        type: Int = 1,
+        pageNumber: Int = 1,
+        pageSize: Int = 20,
+        sessData: String? = null
+    ): BiliResponse<ReplyDetailData> = client.get("/x/v2/reply/reply") {
+        parameter("oid", oid)
+        parameter("type", type)
+        parameter("root", root)
+        parameter("pn", pageNumber)
+        parameter("ps", pageSize)
+        sessData?.takeIf { it.isNotBlank() }?.let { header("Cookie", "SESSDATA=$it;") }
     }.body()
 
     /**
@@ -1612,6 +1660,19 @@ object BiliHttpApi {
         parameter("new_cursor_status", true)
     }.body()
 
+    /**
+     * 获取 PGC 排行榜
+     *
+     * @param seasonType 剧集类型，同 [SeasonIndexType.id]
+     * @param day 统计周期，3：三日 7：一周
+     */
+    suspend fun getPgcSeasonRank(
+        seasonType: Int,
+        day: Int = 3
+    ): BiliResponse<PgcSeasonRankData> = client.get("/pgc/season/rank/web/list") {
+        parameter("day", day)
+        parameter("season_type", seasonType)
+    }.body()
 
     /**
      * 获取用户[mid]的追剧列表
@@ -1729,6 +1790,68 @@ object BiliHttpApi {
             parameter("idx", idx)
             accessKey?.let { parameter("access_key", it) }
         }.body()
+
+    /**
+     * 首页推荐「不感兴趣」（App）
+     *
+     * [reasonId] 取自推荐条目的 three_point；[mid] / [rid] / [tagId] 分别是 UP 主、分区、频道，
+     * 服务端按 reason 取其中对应的那一个，所以有就都带上
+     */
+    suspend fun dislikeAppFeed(
+        goto: String,
+        id: Long,
+        reasonId: Int,
+        mid: Long? = null,
+        rid: Int? = null,
+        tagId: Int? = null,
+        accessKey: String
+    ): BiliResponseWithoutData =
+        client.get("https://app.bilibili.com/x/feed/dislike") {
+            parameter("goto", goto)
+            parameter("id", id)
+            parameter("reason_id", reasonId)
+            parameter("mid", mid)
+            parameter("rid", rid)
+            parameter("tag_id", tagId)
+            parameter("build", BiliAppConf.APP_BUILD_CODE)
+            parameter("mobi_app", BiliAppConf.MOBI_APP)
+            parameter("access_key", accessKey)
+        }.body()
+
+    /**
+     * 首页推荐「不感兴趣」（Web）
+     *
+     * 参数照抄网页首页。[trackId] 取自推荐条目，服务端靠它对上是哪一次推荐；
+     * 这个接口虽然是 POST，也要求 query 上带 wbi 签名，见 encApiSign
+     */
+    suspend fun dislikeWebFeed(
+        goto: String,
+        id: Long,
+        mid: Long?,
+        trackId: String,
+        reasonId: Int,
+        csrf: String,
+        sessData: String
+    ): BiliResponseWithoutData = client.post("/x/web-interface/feedback/dislike") {
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("app_id", "100")
+                    append("platform", "5")
+                    append("from_spmid", "")
+                    append("spmid", "333.1007.0.0")
+                    append("goto", goto)
+                    append("id", "$id")
+                    append("mid", "${mid ?: 0}")
+                    append("track_id", trackId)
+                    append("feedback_page", "1")
+                    append("reason_id", "$reasonId")
+                    append("csrf", csrf)
+                }
+            )
+        )
+        header("Cookie", "SESSDATA=$sessData;")
+    }.body()
 
     private suspend fun seasonIndexResult(
         seasonIndexType: SeasonIndexType,

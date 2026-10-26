@@ -16,6 +16,7 @@ import java.io.IOException
  * B 站每条流除了主地址还会给若干个备用地址。默认的做法是只认主地址，节点抽风时就在同一个地址上
  * 重试到超时，这段时间画面是卡住的；这里一旦某个地址打不开就立刻换下一个，并记住换到了哪个，
  * 后面的续传请求直接从这个能用的地址开始，不再每次都去撞那个坏节点。
+ * 工厂配置测速器时，启动和持续低速都会在后台比较下载速度，再从当前字节位置切到更快的地址。
  */
 @OptIn(UnstableApi::class)
 class FallbackUrlDataSource(
@@ -23,7 +24,8 @@ class FallbackUrlDataSource(
     private val urls: List<Uri>,
     private val preferredIndexHolder: PreferredIndexHolder,
     private val requiredBitrate: () -> Long = { 0 },
-    private val nanoTime: () -> Long = System::nanoTime
+    private val nanoTime: () -> Long = System::nanoTime,
+    private val refreshSelection: (() -> Unit)? = null
 ) : DataSource {
     companion object {
         private const val TAG = "FallbackUrlDataSource"
@@ -87,7 +89,8 @@ class FallbackUrlDataSource(
         switchBeforeNextRead = false
         // 磁盘预下载按小块重新 open，低速样本与待切换状态必须跨请求保留。
         if (urls.size > 1 && preferredIndexHolder.consumeSlowSwitch(preferredIndexHolder.index, nanoTime())) {
-            preferredIndexHolder.index = (preferredIndexHolder.index + 1) % urls.size
+            if (refreshSelection != null) refreshSelection.invoke()
+            else preferredIndexHolder.index = (preferredIndexHolder.index + 1) % urls.size
         }
         expectedLength = openFrom(dataSpec, buildCandidates(dataSpec.uri))
         return expectedLength
@@ -96,6 +99,7 @@ class FallbackUrlDataSource(
     /** 按给定顺序挨个试着打开，第一个能开的就留下 */
     private fun openFrom(spec: DataSpec, candidates: List<Pair<Int, Uri>>): Long {
         var lastError: IOException? = null
+        val preferredAtStart = preferredIndexHolder.index
 
         candidates.forEach { (index, uri) ->
             val source = upstreamFactory.createDataSource()
@@ -105,7 +109,8 @@ class FallbackUrlDataSource(
                 currentSource = source
                 currentUri = uri
                 currentIndex = index
-                preferredIndexHolder.index = index
+                // 打开旧请求期间新一轮测速可能已经完成，不能用旧结果覆盖它。
+                if (preferredIndexHolder.index == preferredAtStart) preferredIndexHolder.index = index
                 return bytes
             } catch (e: IOException) {
                 lastError = e
@@ -128,10 +133,15 @@ class FallbackUrlDataSource(
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
         if (expectedLength >= 0 && bytesRead >= expectedLength) return -1
+        // 后台测速只发布偏好；真正续传仍在加载线程按已交付的字节偏移进行。
+        if (refreshSelection != null && preferredIndexHolder.index != currentIndex) {
+            tryFasterCdn(buffer, offset, length, preferredIndexHolder.index)?.let { return it }
+        }
         if (switchBeforeNextRead) {
             switchBeforeNextRead = false
             if (preferredIndexHolder.consumeSlowSwitch(currentIndex, nanoTime())) {
-                tryFasterCdn(buffer, offset, length)?.let { return it }
+                if (refreshSelection != null) refreshSelection.invoke()
+                else tryFasterCdn(buffer, offset, length)?.let { return it }
             }
         }
         val source = currentSource ?: throw IOException("DataSource is not opened")
@@ -159,13 +169,15 @@ class FallbackUrlDataSource(
         return count
     }
 
-    /** 低速但仍可读时只探测一个备选；备选失败继续旧连接，不制造一次新的播放错误。 */
-    private fun tryFasterCdn(buffer: ByteArray, offset: Int, length: Int): Int? {
+    /** 尝试测速选中的地址（未配置测速时用下一个）；失败保留旧连接，不制造新的播放错误。 */
+    private fun tryFasterCdn(buffer: ByteArray, offset: Int, length: Int, selectedIndex: Int? = null): Int? {
         val spec = openedSpec ?: return null
         val oldSource = currentSource ?: return null
         val oldIndex = currentIndex
         val oldUri = currentUri
-        val candidate = buildCandidates(spec.uri).firstOrNull { it.first != oldIndex } ?: return null
+        val candidate = buildCandidates(spec.uri).firstOrNull {
+            it.first != oldIndex && (selectedIndex == null || it.first == selectedIndex)
+        } ?: return null
         val resumeSpec = if (bytesRead > 0) spec.subrange(bytesRead) else spec
         try {
             openFrom(resumeSpec, listOf(candidate))
@@ -173,14 +185,14 @@ class FallbackUrlDataSource(
             if (count <= 0) throw IOException("No data from alternate CDN")
             bytesRead += count
             runCatching { oldSource.close() }
-            Log.i(TAG, "Slow CDN ${oldUri?.host} -> ${candidate.second.host}, resumed at ${resumeSpec.position}")
+            Log.i(TAG, "Switch CDN ${oldUri?.host} -> ${candidate.second.host}, resumed at ${resumeSpec.position}")
             return count
         } catch (_: IOException) {
             if (currentSource !== oldSource) runCatching { currentSource?.close() }
             currentSource = oldSource
             currentUri = oldUri
             currentIndex = oldIndex
-            preferredIndexHolder.index = oldIndex
+            if (preferredIndexHolder.index == candidate.first) preferredIndexHolder.index = oldIndex
             return null
         }
     }
@@ -235,14 +247,23 @@ class FallbackUrlDataSource(
     class Factory(
         private val upstreamFactory: DataSource.Factory,
         urls: List<String>,
-        private val requiredBitrate: () -> Long = { 0 }
+        private val requiredBitrate: () -> Long = { 0 },
+        probe: (suspend (String) -> Double?)? = null
     ) : DataSource.Factory {
         private val uris = urls.distinct().map { it.toUri() }
         private val preferredIndexHolder = PreferredIndexHolder()
+        private val selector = probe?.let {
+            AdaptiveCdnSelector(uris.map(Uri::toString), { preferredIndexHolder.index },
+                { preferredIndexHolder.index = it }, it).also { it.refresh() }
+        }
+
+        fun release() { selector?.close() }
+
         val currentHost: String
             get() = uris.getOrNull(preferredIndexHolder.index)?.host.orEmpty()
 
         override fun createDataSource(): DataSource =
-            FallbackUrlDataSource(upstreamFactory, uris, preferredIndexHolder, requiredBitrate)
+            FallbackUrlDataSource(upstreamFactory, uris, preferredIndexHolder, requiredBitrate,
+                refreshSelection = selector?.let { { it.refresh(); Unit } })
     }
 }

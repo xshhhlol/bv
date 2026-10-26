@@ -144,13 +144,11 @@ fun HomeContent(
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
                 .onPreviewKeyEvent {
-                    if (it.key == Key.Menu) {
+                    // 推荐页的菜单键留给卡片弹操作菜单；要刷新推荐就回顶栏点「推荐」
+                    if (it.key == Key.Menu && selectedTab != HomeTopNavItem.Recommend) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         when (selectedTab) {
-                            HomeTopNavItem.Recommend -> {
-                                recommendViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
-                            }
+                            HomeTopNavItem.Recommend -> {}
 
                             HomeTopNavItem.Popular -> {
                                 popularViewModel.clearData()

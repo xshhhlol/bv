@@ -3,7 +3,9 @@ package dev.aaa1115910.biliapi.repositories
 import bilibili.app.show.v1.PopularGrpcKt
 import bilibili.app.show.v1.popularResultReq
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.home.DislikeType
 import dev.aaa1115910.biliapi.entity.home.RecommendData
+import dev.aaa1115910.biliapi.entity.home.RecommendDislikeArgs
 import dev.aaa1115910.biliapi.entity.home.RecommendPage
 import dev.aaa1115910.biliapi.entity.rank.PopularVideoData
 import dev.aaa1115910.biliapi.entity.rank.PopularVideoPage
@@ -97,5 +99,42 @@ class RecommendVideoRepository(
             items = items,
             nextPage = nextPage
         )
+    }
+
+    /**
+     * 对首页推荐条目提交「不感兴趣」
+     *
+     * 走哪个接口看条目本身来自哪一边的推荐流，而不是当前的 apiType 设置。
+     * 成功时返回服务端给的提示语，没有就是 null
+     */
+    suspend fun dislikeRecommendVideo(item: UgcItem, type: DislikeType): String? {
+        val args = requireNotNull(item.dislikeArgs) { "这个视频不支持不感兴趣" }
+        val reason = args.reasonFor(type)
+        val response = when (args) {
+            is RecommendDislikeArgs.Web -> BiliHttpApi.dislikeWebFeed(
+                goto = args.goto,
+                id = item.aid,
+                mid = item.authorMid,
+                trackId = args.trackId,
+                reasonId = reason.id,
+                csrf = authRepository.biliJct?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("请先登录"),
+                sessData = authRepository.sessionData?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("请先登录")
+            )
+
+            is RecommendDislikeArgs.App -> BiliHttpApi.dislikeAppFeed(
+                goto = args.goto,
+                id = item.aid,
+                reasonId = reason.id,
+                mid = item.authorMid,
+                rid = args.rid,
+                tagId = args.tagId,
+                accessKey = authRepository.accessToken?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("请先登录")
+            )
+        }
+        check(response.code == 0) { response.message }
+        return reason.toast
     }
 }

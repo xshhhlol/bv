@@ -11,5 +11,6 @@ enum class ImageSize(val sizeString: String) {
     Default(""),
     Cover("180h_288w_1c"),
     SmallVideoCardCover("400h_640w_1c"),
-    SeasonCoverThumbnail("466h_622w")
+    SeasonCoverThumbnail("466h_622w"),
+    SeasonBackdrop("720h_1280w_1c")
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Comment
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.tv.material3.Border
@@ -126,6 +127,7 @@ fun ControllerVideoInfo(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
     onShowEngagement: () -> Unit = {},
+    onShowComments: () -> Unit = {},
     onTogglePlayerInfo: () -> Unit = {},
     showPlayerInfo: Boolean = false,
     isPlaying: Boolean = false
@@ -182,6 +184,7 @@ fun ControllerVideoInfo(
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage,
                 onShowEngagement = onShowEngagement,
+                onShowComments = onShowComments,
                 onTogglePlayerInfo = onTogglePlayerInfo,
                 showPlayerInfo = showPlayerInfo,
                 isPlaying = isPlaying
@@ -341,6 +344,7 @@ fun ControllerVideoInfoBottom(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
     onShowEngagement: () -> Unit = {},
+    onShowComments: () -> Unit = {},
     onTogglePlayerInfo: () -> Unit = {},
     showPlayerInfo: Boolean = false,
     isPlaying: Boolean = false
@@ -451,6 +455,7 @@ fun ControllerVideoInfoBottom(
             when (button) {
                 ControllerButton.PlayPause -> onPlayPause
                 ControllerButton.Engagement -> onShowEngagement
+                ControllerButton.Comment -> onShowComments
                 ControllerButton.Danmaku -> onDanmakuSwitchChange
                 ControllerButton.Settings -> onShowSettings
                 ControllerButton.VideoList -> onShowVideoList
@@ -488,6 +493,7 @@ fun ControllerVideoInfoBottom(
                 val icon = when (button) {
                     ControllerButton.PlayPause -> if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
                     ControllerButton.Engagement -> Icons.Rounded.ThumbUp
+                    ControllerButton.Comment -> Icons.AutoMirrored.Rounded.Comment
                     ControllerButton.Danmaku -> if (danmakuEnabled) Icons.Rounded.Subtitles else Icons.Rounded.SubtitlesOff
                     ControllerButton.VideoList -> Icons.Rounded.PlaylistPlay
                     ControllerButton.Settings -> Icons.Rounded.Tune
@@ -500,6 +506,7 @@ fun ControllerVideoInfoBottom(
                 val label = when (button) {
                     ControllerButton.PlayPause -> if (isPlaying) "暂停" else "播放"
                     ControllerButton.Engagement -> "点赞·投币·收藏"
+                    ControllerButton.Comment -> "评论区"
                     ControllerButton.Danmaku -> if (danmakuEnabled) "隐藏弹幕" else "显示弹幕"
                     ControllerButton.VideoList -> "播放列表"
                     ControllerButton.Settings -> "播放设置"

@@ -38,9 +38,21 @@ class FollowingSeasonViewModel(
 
     private var updateJob: Job? = null
 
+    // Activity 重建时 ViewModel 会保留下来，不能再用启动参数覆盖用户在筛选里的选择
+    private var initialTypeApplied = false
+
     init {
         followingSeasonType = FollowingSeasonType.Bangumi
         followingSeasonStatus = FollowingSeasonStatus.All
+    }
+
+    /**
+     * 应用进入页面时指定的追剧类型，只在 ViewModel 首次创建时生效
+     */
+    fun applyInitialType(type: FollowingSeasonType?) {
+        if (initialTypeApplied) return
+        initialTypeApplied = true
+        type?.let { followingSeasonType = it }
     }
 
     fun clearData() {

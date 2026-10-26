@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.component.videocard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,7 +51,9 @@ fun SeasonCard(
     coverHeight: Dp? = null,
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
-    onFocus: () -> Unit = {}
+    onFocus: () -> Unit = {},
+    // 叠加在封面上的内容，例如排行榜的名次，会跟着封面一起裁切和放大
+    coverOverlay: (@Composable BoxScope.() -> Unit)? = null
 ) {
     val localDensity = LocalDensity.current
     var coverRealWidth by remember { mutableStateOf(0.dp) }
@@ -126,6 +129,8 @@ fun SeasonCard(
                         textAlign = TextAlign.End
                     )
                 }
+
+                coverOverlay?.invoke(this)
             }
 
             Column(

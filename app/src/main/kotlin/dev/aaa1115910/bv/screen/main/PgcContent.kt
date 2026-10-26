@@ -58,13 +58,14 @@ fun PgcContent(
     val tvState = rememberLazyListState()
     val varietyState = rememberLazyListState()
 
-    // 和 TopNav 里的选中项一起存，从别的板块切回来时还停在原来那一栏
+    // 和 TopNav 里的选中项一起存，从别的板块切回来时还停在原来那一栏。
+    // 默认是第一栏，和 TopNav 默认选中第一个对应，调整标签顺序时两边不会错位
     var selectedTab by rememberSaveable(
         stateSaver = Saver(
             save = { it.name },
             restore = { PgcTopNavItem.valueOf(it) }
         )
-    ) { mutableStateOf(PgcTopNavItem.Anime) }
+    ) { mutableStateOf(PgcTopNavItem.entries.first()) }
     var focusOnContent by remember { mutableStateOf(false) }
     val currentListOnTop by remember {
         derivedStateOf {

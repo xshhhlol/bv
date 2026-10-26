@@ -26,6 +26,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
@@ -137,13 +138,16 @@ fun SettingsActionListItem(
 fun SettingsDialogTitle(
     modifier: Modifier = Modifier,
     text: String,
-    subtitle: String? = null
+    subtitle: String? = null,
+    maxLines: Int = Int.MAX_VALUE
 ) {
     Column(modifier = modifier) {
         Text(
             text = text,
             style = MaterialTheme.typography.titleLarge,
-            color = BVColor.TextPrimary
+            color = BVColor.TextPrimary,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis
         )
         if (subtitle != null) {
             Spacer(modifier = Modifier.height(6.dp))

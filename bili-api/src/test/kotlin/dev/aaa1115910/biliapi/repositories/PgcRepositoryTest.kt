@@ -1,5 +1,6 @@
 package dev.aaa1115910.biliapi.repositories
 
+import dev.aaa1115910.biliapi.entity.pgc.PgcRankDay
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.pgc.index.Area
 import dev.aaa1115910.biliapi.entity.pgc.index.Copyright
@@ -15,11 +16,16 @@ import dev.aaa1115910.biliapi.entity.pgc.index.SeasonVersion
 import dev.aaa1115910.biliapi.entity.pgc.index.SpokenLanguage
 import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.biliapi.entity.pgc.index.Year
+import dev.aaa1115910.biliapi.http.BiliHttpApi
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 
 class PgcRepositoryTest {
     private val pgcRepository: PgcRepository = PgcRepository()
+
+    init {
+        BiliHttpApi.init(buvid3 = "")
+    }
 
     @Test
     fun `get pgc carousel data`() {
@@ -42,6 +48,17 @@ class PgcRepositoryTest {
                     cursor = 0
                 )
                 println(data)
+            }
+        }
+    }
+
+    @Test
+    fun `get pgc rank`() {
+        runBlocking {
+            PgcRankDay.entries.forEach { day ->
+                val data = pgcRepository.getRank(pgcType = PgcType.Movie, day = day)
+                println("day: $day, note: ${data.note}, size: ${data.items.size}")
+                println(data.items.take(3))
             }
         }
     }

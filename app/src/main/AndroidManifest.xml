@@ -70,6 +70,11 @@
             android:label="@string/title_activity_pgc_index"
             android:theme="@style/Theme.BV" />
         <activity
+            android:name=".activities.pgc.PgcRankActivity"
+            android:exported="false"
+            android:label="@string/title_activity_pgc_rank"
+            android:theme="@style/Theme.BV" />
+        <activity
             android:name=".activities.user.FollowingSeasonActivity"
             android:exported="false"
             android:label="@string/title_activity_following_season"

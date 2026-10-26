@@ -79,6 +79,11 @@ class ExoMediaPlayer(
             options.referer?.let { setDefaultRequestProperties(mapOf("referer" to it)) }
         }
 
+    // 第一次调用发生在后台测速协程，不在主线程初始化 SSL 客户端。
+    private val cdnSpeedProbe by lazy {
+        CdnSpeedProbe(OkHttpUtil.customSslOkHttpClient(context), options.userAgent, options.referer)
+    }
+
     init {
         OkHttpUtil.prewarmCustomSslOkHttpClient(context)
         initPlayer()
@@ -188,6 +193,7 @@ class ExoMediaPlayer(
     ) {
         networkSpeedMeter.clear()
         renderedFrameMeter.reset()
+        streamFactories.forEach { it.release() }
         streamFactories.clear()
         prefetchStreams.clear()
         videoDecoderName = null
@@ -218,7 +224,8 @@ class ExoMediaPlayer(
     ): MediaSource {
         val fallbackFactory = FallbackUrlDataSource.Factory(
             dataSourceFactory, listOf(url) + backupUrls,
-            requiredBitrate = { (bitrate.toLong() * playbackSpeed).toLong() }
+            requiredBitrate = { (bitrate.toLong() * playbackSpeed).toLong() },
+            probe = { cdnSpeedProbe.measure(it) }
         )
         streamFactories.add(fallbackFactory)
 
@@ -316,6 +323,8 @@ class ExoMediaPlayer(
     }
 
     override fun release() {
+        streamFactories.forEach { it.release() }
+        streamFactories.clear()
         // 退出播放页就把这次下的数据删掉，不在盘上常驻
         mPlayer?.release()
         prefetcher.stopAndClear()

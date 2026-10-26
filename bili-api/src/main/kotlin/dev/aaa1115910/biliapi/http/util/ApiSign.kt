@@ -145,6 +145,11 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
             }
 
             HttpMethod.Post -> {
+                // 首页推荐的 web「不感兴趣」表单走 body，但 query 上也要带 wts/w_rid，不然会被风控拒掉
+                if (request.url.encodedPath == "/x/web-interface/feedback/dislike") {
+                    request.encWbi()
+                    return@intercept execute(request)
+                }
                 if (request.body is EmptyContent) return@intercept execute(request)
                 val parameters = (request.body as? FormDataContent)?.formData
                     ?: return@intercept execute(request)

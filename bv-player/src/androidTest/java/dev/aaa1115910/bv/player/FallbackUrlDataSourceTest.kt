@@ -89,7 +89,55 @@ class FallbackUrlDataSourceTest {
         second.close()
     }
 
+    @Test
+    fun measuredWinnerCanSkipFirstBackupAndResumeExactRange() {
+        val fixture = Fixture(adaptive = true)
+        val source = fixture.newSource()
+        try {
+            source.open(DataSpec.Builder().setUri(fixture.primary).setPosition(5).setLength(20).build())
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(4)
+            output.write(buffer, 0, source.read(buffer, 0, 4))
+            // 模拟后台测速完成：第三个节点最快，不必先试第二个。
+            fixture.preferred.index = 2
+            while (true) {
+                val count = source.read(buffer, 0, 4)
+                if (count == -1) break
+                output.write(buffer, 0, count)
+            }
+            assertArrayEquals(fixture.content.copyOfRange(5, 25), output.toByteArray())
+            assertEquals("three.example", fixture.opens.last().uri.host)
+            assertEquals(9L, fixture.opens.last().position)
+            assertEquals(16L, fixture.opens.last().length)
+            assertFalse(fixture.opens.any { it.uri.host == "two.example" })
+        } finally { source.close() }
+        assertTrue(fixture.sources.all { it.closed })
+    }
+
+    @Test
+    fun failedMeasuredWinnerKeepsOldReadableConnection() {
+        val fixture = Fixture(adaptive = true, rejectBackup = true)
+        val source = fixture.newSource()
+        try {
+            source.open(DataSpec.Builder().setUri(fixture.primary).setPosition(5).setLength(20).build())
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(4)
+            output.write(buffer, 0, source.read(buffer, 0, 4))
+            fixture.preferred.index = 1
+            while (true) {
+                val count = source.read(buffer, 0, 4)
+                if (count == -1) break
+                output.write(buffer, 0, count)
+            }
+            assertArrayEquals(fixture.content.copyOfRange(5, 25), output.toByteArray())
+            assertEquals(0, fixture.preferred.index)
+            assertEquals(1, fixture.opens.count { it.uri.host == "two.example" })
+        } finally { source.close() }
+        assertTrue(fixture.sources.all { it.closed })
+    }
+
     private class Fixture(
+        val adaptive: Boolean = false,
         val slow: Boolean = false,
         val rejectBackup: Boolean = false,
         val breakPrimary: Boolean = false,
@@ -106,7 +154,8 @@ class FallbackUrlDataSourceTest {
 
         fun newSource() = FallbackUrlDataSource(
             DataSource.Factory { FakeSource().also { sources.add(it) } },
-            listOf(primary, backup), preferred, { 25_000_000L }, { now }
+            listOf(primary, backup, Uri.parse("https://three.example/video")), preferred, { 25_000_000L }, { now },
+            refreshSelection = if (adaptive) ({}) else null
         )
 
         fun download(): ByteArray {

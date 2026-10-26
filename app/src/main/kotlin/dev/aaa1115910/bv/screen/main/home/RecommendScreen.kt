@@ -12,12 +12,20 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,6 +62,9 @@ fun RecommendScreen(
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 按了菜单键的那张卡片，非空时弹出操作菜单
+    var menuItem by remember { mutableStateOf<UgcItem?>(null) }
 
     val onClickVideo: (UgcItem) -> Unit = { ugcItem ->
         VideoInfoActivity.actionStart(context, ugcItem.aid)
@@ -101,6 +112,12 @@ fun RecommendScreen(
             key = { index, _ -> index }
         ) { _, item ->
             SmallVideoCard(
+                modifier = Modifier.onPreviewKeyEvent {
+                    if (it.key != Key.Menu) return@onPreviewKeyEvent false
+                    // 按下先吞掉，抬起再弹，免得抬起那一下落进刚弹出的菜单里
+                    if (it.type == KeyEventType.KeyUp) menuItem = item
+                    true
+                },
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(
                         avid = item.aid,
@@ -152,5 +169,14 @@ fun RecommendScreen(
                 )
             }
         }
+    }
+
+    menuItem?.let { item ->
+        RecommendVideoMenu(
+            item = item,
+            onDismiss = { menuItem = null },
+            onAddWatchLater = { toViewViewModel.addToView(item.aid) },
+            onDislike = { type -> recommendViewModel.dislike(item, type) }
+        )
     }
 }

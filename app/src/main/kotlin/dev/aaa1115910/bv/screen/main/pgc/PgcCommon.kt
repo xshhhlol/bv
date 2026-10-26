@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -78,7 +79,14 @@ fun PgcScaffold(
     lazyListState: LazyListState,
     pgcViewModel: PgcViewModel,
     pgcType: PgcType,
-    featureButtons: (@Composable () -> Unit)? = null
+    featureButtons: (@Composable () -> Unit)? = null,
+    // 功能按钮和猜你喜欢之间额外插入的内容，例如电影页的分类和片单
+    extraContent: (LazyListScope.() -> Unit)? = null,
+    // 猜你喜欢上方的标题，不传时不显示
+    feedTitle: (@Composable () -> Unit)? = null,
+    // 猜你喜欢每行卡片的左右留白。不传时每行卡片整体居中（原来的样子）；
+    // 传了就让每行占满宽度、卡片从这个留白处开始靠左排，和上方靠左排的内容对齐
+    feedHorizontalPadding: Dp? = null
 ) {
     val context = LocalContext.current
     val carouselFocusRequester = remember { FocusRequester() }
@@ -127,6 +135,12 @@ fun PgcScaffold(
                 )
             }
         }
+        extraContent?.invoke(this)
+        if (feedTitle != null && pgcFeeds.isNotEmpty()) {
+            item {
+                feedTitle()
+            }
+        }
         itemsIndexed(items = pgcFeeds) { index, feedListItem ->
             Box(
                 modifier = Modifier
@@ -143,7 +157,9 @@ fun PgcScaffold(
             ) {
                 when (feedListItem.type) {
                     FeedListType.Ep -> PgcFeedVideoRow(
-                        data = feedListItem.items!!
+                        modifier = if (feedHorizontalPadding != null) Modifier.fillMaxWidth() else Modifier,
+                        data = feedListItem.items!!,
+                        horizontalPadding = feedHorizontalPadding ?: 24.dp
                     )
 
                     FeedListType.Rank -> PgcFeedRankRow(
@@ -158,12 +174,13 @@ fun PgcScaffold(
 @Composable
 fun PgcFeedVideoRow(
     modifier: Modifier = Modifier,
-    data: List<PgcItem>
+    data: List<PgcItem>,
+    horizontalPadding: Dp = 24.dp
 ) {
     val context = LocalContext.current
     LazyRow(
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 24.dp),
+        contentPadding = PaddingValues(horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         data.forEachIndexed { index, feedItem ->

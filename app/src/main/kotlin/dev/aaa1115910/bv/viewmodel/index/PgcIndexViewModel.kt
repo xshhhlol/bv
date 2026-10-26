@@ -45,6 +45,9 @@ class PgcIndexViewModel(
     private var nextPage = PgcIndexData.PgcIndexPage()
     val noMore get() = nextPage.hasNext.not()
 
+    // Activity 重建时 ViewModel 会保留下来，不能再用启动参数覆盖用户改过的筛选条件
+    private var initialized = false
+
     var pgcType by mutableStateOf(PgcType.Anime)
 
     var indexOrder by mutableStateOf(IndexOrder.FollowCount)
@@ -64,6 +67,28 @@ class PgcIndexViewModel(
     fun changePgcType(pgcType: PgcType) {
         this.pgcType = pgcType
         indexOrder = IndexOrder.getList(pgcType).first()
+    }
+
+    /**
+     * 按启动参数设置类型和预设筛选条件，只在 ViewModel 首次创建时生效，
+     * Activity 重建后保留用户已经改过的筛选条件
+     *
+     * 不在当前类型可选范围内的预设条件会被忽略
+     */
+    fun initIfNeeded(
+        pgcType: PgcType,
+        indexOrder: IndexOrder? = null,
+        seasonStatus: SeasonStatus? = null,
+        area: Area? = null,
+        style: Style? = null
+    ) {
+        if (initialized) return
+        initialized = true
+        changePgcType(pgcType)
+        indexOrder?.takeIf { it in IndexOrder.getList(pgcType) }?.let { this.indexOrder = it }
+        seasonStatus?.takeIf { it in SeasonStatus.getList(pgcType) }?.let { this.seasonStatus = it }
+        area?.takeIf { it in Area.getList(pgcType) }?.let { this.area = it }
+        style?.takeIf { it in Style.getList(pgcType) }?.let { this.style = it }
     }
 
     suspend fun loadMore() {

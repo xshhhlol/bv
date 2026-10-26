@@ -242,9 +242,10 @@ enum class UgcTopNavItem(val ugcTypeV2: UgcTypeV2) : TopNavItem {
 }
 
 enum class PgcTopNavItem(private val pgcType: PgcType) : TopNavItem {
+    // 顺序就是影视板块顶部标签的顺序，第一个也是默认打开的那一栏
+    Movie(PgcType.Movie),
     Anime(PgcType.Anime),
     GuoChuang(PgcType.GuoChuang),
-    Movie(PgcType.Movie),
     Documentary(PgcType.Documentary),
     Tv(PgcType.Tv),
     Variety(PgcType.Variety);

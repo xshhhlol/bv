@@ -48,6 +48,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun FollowingSeasonScreen(
     modifier: Modifier = Modifier,
+    initialType: FollowingSeasonType? = null,
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -57,7 +58,11 @@ fun FollowingSeasonScreen(
     var showFilter by remember { mutableStateOf(false) }
 
     val followingSeasons = followingSeasonViewModel.followingSeasons
-    var followingSeasonType by remember { mutableStateOf(followingSeasonViewModel.followingSeasonType) }
+    var followingSeasonType by remember {
+        // 从电影页进来时默认显示影视，只在 ViewModel 首次创建时生效，Activity 重建后保留筛选里的选择
+        followingSeasonViewModel.applyInitialType(initialType)
+        mutableStateOf(followingSeasonViewModel.followingSeasonType)
+    }
     var followingSeasonStatus by remember { mutableStateOf(followingSeasonViewModel.followingSeasonStatus) }
     val noMore = followingSeasonViewModel.noMore
 

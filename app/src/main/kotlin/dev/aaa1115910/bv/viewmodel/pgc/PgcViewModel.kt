@@ -70,7 +70,7 @@ abstract class PgcViewModel(
     /**
      * 重新加载所有数据，点击界面顶部 Tab 时使用
      */
-    fun reloadAll() {
+    open fun reloadAll() {
         logger.fInfo { "Reload all $pgcType data" }
         clearAll()
         viewModelScope.launch(Dispatchers.IO) {

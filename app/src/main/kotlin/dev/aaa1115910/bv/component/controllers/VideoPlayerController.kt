@@ -37,6 +37,7 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.controllers.comment.VideoCommentController
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutAction
 import dev.aaa1115910.bv.entity.PlayerCustomShortcutKeys
@@ -54,10 +55,12 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
+import dev.aaa1115910.bv.viewmodel.player.VideoCommentViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 import kotlin.math.roundToInt
 
 // 放在文件级：写在 Composable 里每次重组都会新建一个，捕获它的回调也跟着全变，子组件就没法跳过重组
@@ -116,7 +119,9 @@ fun VideoPlayerController(
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
-    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController } }
+    var showCommentController by remember { mutableStateOf(false) }
+    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController || showCommentController } }
+    val commentViewModel: VideoCommentViewModel = koinViewModel()
     val controlButtonTooltipState = remember { ControlButtonTooltipState() }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
@@ -432,7 +437,9 @@ fun VideoPlayerController(
             event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
 
         if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
-            return true
+            // 评论长按滚动需要收到松键，才能立即停止。
+            return !(showCommentController &&
+                (event.key == Key.DirectionUp || event.key == Key.DirectionDown))
         }
 
         logger.info { "[${event.key} press]" }
@@ -443,11 +450,15 @@ fun VideoPlayerController(
 
         when (event.key) {
             Key.Back -> {
-                if (showClickableControllers) {
+                if (showCommentController && commentViewModel.replyRoot != null) {
+                    // 在楼中楼里先回到评论列表
+                    commentViewModel.closeReplies()
+                } else if (showClickableControllers) {
                     showMenuController = false
                     showListController = false
                     showInfoSeekController = false
                     showRelatedVideosController = false
+                    showCommentController = false
                 } else {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastPressBack < 3000) {
@@ -464,6 +475,7 @@ fun VideoPlayerController(
                 showInfoSeekController = false
                 showListController = false
                 showRelatedVideosController = false
+                showCommentController = false
                 showMenuController = true
                 return true
             }
@@ -644,6 +656,11 @@ fun VideoPlayerController(
                 if (isPlaying) onPause()
                 showInfoSeekController = false
                 engagementAid = currentUiState.aid
+            },
+            // 和设置抽屉一样不暂停，边看边刷评论
+            onShowComments = {
+                showInfoSeekController = false
+                showCommentController = true
             }
         )
 
@@ -662,6 +679,12 @@ fun VideoPlayerController(
             currentCid = uiState.cid,
             videoList = uiState.availableVideoList,
             onPlayNewVideo = onPlayNewVideo
+        )
+
+        VideoCommentController(
+            show = showCommentController,
+            aid = uiState.aid,
+            viewModel = commentViewModel
         )
 
         engagementAid?.takeIf { it == uiState.aid }?.let { targetAid ->

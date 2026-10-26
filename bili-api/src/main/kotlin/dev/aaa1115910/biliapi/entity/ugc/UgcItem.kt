@@ -1,5 +1,7 @@
 package dev.aaa1115910.biliapi.entity.ugc
 
+import dev.aaa1115910.biliapi.entity.home.DislikeReason
+import dev.aaa1115910.biliapi.entity.home.RecommendDislikeArgs
 import dev.aaa1115910.biliapi.http.entity.home.RcmdIndexData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
 import dev.aaa1115910.biliapi.http.util.smartDate
@@ -18,6 +20,8 @@ data class UgcItem(
     val duration: Int,
     val idx: Int = -1,
     val pubTime: String? = null,
+    /** 只有首页推荐流的条目才有，用来提交「不感兴趣」 */
+    val dislikeArgs: RecommendDislikeArgs? = null,
 ) {
     companion object {
         fun fromRcmdItem(rcmdItem: RcmdIndexData.RcmdItem) =
@@ -49,7 +53,13 @@ data class UgcItem(
                 duration = rcmdItem.playerArgs?.duration
                     ?: rcmdItem.coverRightText?.convertStringTimeToSeconds()
                     ?: 0,
-                idx = rcmdItem.idx
+                idx = rcmdItem.idx,
+                dislikeArgs = RecommendDislikeArgs.App(
+                    goto = rcmdItem.goto ?: rcmdItem.cardGoto,
+                    rid = rcmdItem.args.rid,
+                    tagId = rcmdItem.args.tid,
+                    reasons = rcmdItem.dislikeReasons()
+                )
             )
 
         fun fromRcmdItem(rcmdItem: RcmdTopData.RcmdItem) =
@@ -63,7 +73,11 @@ data class UgcItem(
                 play = rcmdItem.stat?.view ?: -1,
                 danmaku = rcmdItem.stat?.danmaku ?: -1,
                 duration = rcmdItem.duration,
-                pubTime = rcmdItem.pubdate.smartDate
+                pubTime = rcmdItem.pubdate.smartDate,
+                dislikeArgs = RecommendDislikeArgs.Web(
+                    goto = rcmdItem.goto,
+                    trackId = rcmdItem.trackId
+                )
             )
 
         fun fromVideoInfo(videoInfo: dev.aaa1115910.biliapi.http.entity.video.VideoInfo) =
@@ -127,6 +141,15 @@ data class UgcItem(
             )
     }
 }
+
+/** 新版返回放在 three_point_v2 里，老版本只有 three_point.dislike_reasons */
+private fun RcmdIndexData.RcmdItem.dislikeReasons(): List<DislikeReason> =
+    threePointV2.firstOrNull { it.type == "dislike" }?.reasons
+        ?.takeIf { it.isNotEmpty() }
+        ?.map { DislikeReason(id = it.id, name = it.name, toast = it.toast) }
+        ?: threePoint?.dislikeReasons
+            ?.map { DislikeReason(id = it.id, name = it.name, toast = it.toast) }
+        ?: emptyList()
 
 private fun convertStringTimeToSeconds(time: String): Int {
     val parts = time.split(":")

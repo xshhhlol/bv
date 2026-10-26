@@ -2,6 +2,8 @@ package dev.aaa1115910.biliapi.repositories
 
 import dev.aaa1115910.biliapi.entity.CarouselData
 import dev.aaa1115910.biliapi.entity.pgc.PgcFeedData
+import dev.aaa1115910.biliapi.entity.pgc.PgcRankData
+import dev.aaa1115910.biliapi.entity.pgc.PgcRankDay
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.pgc.index.Area
 import dev.aaa1115910.biliapi.entity.pgc.index.Copyright
@@ -18,6 +20,7 @@ import dev.aaa1115910.biliapi.entity.pgc.index.SpokenLanguage
 import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.biliapi.entity.pgc.index.Year
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.SeasonIndexType
 import org.koin.core.annotation.Single
 
 @Single
@@ -45,6 +48,23 @@ class PgcRepository {
             )
         }
         return data
+    }
+
+    suspend fun getRank(pgcType: PgcType, day: PgcRankDay = PgcRankDay.ThreeDays): PgcRankData {
+        val seasonType = when (pgcType) {
+            PgcType.Anime -> SeasonIndexType.Anime
+            PgcType.GuoChuang -> SeasonIndexType.Guochuang
+            PgcType.Movie -> SeasonIndexType.Movie
+            PgcType.Documentary -> SeasonIndexType.Documentary
+            PgcType.Tv -> SeasonIndexType.Tv
+            PgcType.Variety -> SeasonIndexType.Variety
+        }
+        return PgcRankData.fromPgcSeasonRankData(
+            BiliHttpApi.getPgcSeasonRank(
+                seasonType = seasonType.id,
+                day = day.day
+            ).getResponseData()
+        )
     }
 
     suspend fun getPgcIndex(

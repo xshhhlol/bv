@@ -21,6 +21,7 @@ enum class ControllerButton(
 ) {
     PlayPause("playPause", "播放/暂停", R.drawable.play_pause_24px),
     Engagement("engagement", "点赞 / 投币 / 收藏", R.drawable.video_actions_24px),
+    Comment("comment", "评论区", R.drawable.comment_24px),
     Danmaku("danmaku", "弹幕开关", R.drawable.danmaku_on_24px),
     VideoList("videoList", "播放列表", R.drawable.video_list_24px),
     Settings("settings", "打开设置", R.drawable.settings_24px),
@@ -106,6 +107,9 @@ object ControllerButtonsCodec {
             val defaultIndex = defaultOrder.indexOf(button)
             val insertIndex = if (button == ControllerButton.Engagement && result.any { it.button == ControllerButton.Danmaku }) {
                 result.indexOfFirst { it.button == ControllerButton.Danmaku }
+            } else if (button == ControllerButton.Comment && result.any { it.button == ControllerButton.Engagement }) {
+                // 评论紧跟在点赞后面，不管用户把点赞挪到了哪里
+                result.indexOfFirst { it.button == ControllerButton.Engagement } + 1
             } else result
                 .indexOfLast { defaultOrder.indexOf(it.button) < defaultIndex }
                 .let { if (it == -1) 0 else it + 1 }
